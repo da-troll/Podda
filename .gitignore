@@ -6,9 +6,15 @@ dist/
 build/
 
 # Environment & secrets
+# NOTE: `.env` matches that name EXACTLY. A backup beside it (.env.bak-YYYYMMDD,
+# .env.save, .env.old) was NOT covered, and one has been sitting untracked in
+# this working tree since 2026-07-07 holding real values for ADMIN_PASSWORD,
+# PGPASSWORD, SESSION_SECRET and ANNOUNCEMENTS_API_KEY. A single `git add -A`
+# would have staged it. This household has already published two live
+# credentials that way (wilson, b189a58, 2026-07).
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
 
 # TypeScript build cache
 *.tsbuildinfo
