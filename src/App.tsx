@@ -18,6 +18,8 @@ import { Playlists } from './pages/Playlists';
 import { PlaylistDetail } from './pages/PlaylistDetail';
 import { useDiscoverStore } from './store/discoverStore';
 import { Menu, X } from 'lucide-react';
+import { OverlayProvider } from './hints/OverlayContext';
+import { PreferencesProvider } from './hooks/usePreferences';
 import type { Page } from './types';
 
 function parseHash(): Page {
@@ -127,7 +129,7 @@ function AppContent() {
   const renderPage = () => {
     switch (page.type) {
       case 'library': return <Library onNavigate={navigate} />;
-      case 'podcast': return <PodcastDetail podcastId={page.id} onNavigate={navigate} onBack={pageStack.length > 0 ? goBack : undefined} />;
+      case 'podcast': return <PodcastDetail key={page.id} podcastId={page.id} onNavigate={navigate} onBack={pageStack.length > 0 ? goBack : undefined} />;
       case 'discover': return <Discover onNavigate={navigate} />;
       case 'history': return <History />;
       case 'playlists': return <Playlists onNavigate={navigate} />;
@@ -183,7 +185,7 @@ export default function App() {
 
   return (
     <AuthContext.Provider value={auth}>
-      {auth.user ? <AppContent /> : <Login />}
+      {auth.user ? <PreferencesProvider key={auth.user.id}><OverlayProvider><AppContent /></OverlayProvider></PreferencesProvider> : <Login />}
     </AuthContext.Provider>
   );
 }

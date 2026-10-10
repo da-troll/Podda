@@ -1,11 +1,9 @@
 {
-  "version": "1.1.0",
-  "date": "2026-05-04",
+  "version": "1.2.0",
+  "date": "2026-10-10",
   "bullets": [
-    "Fixed the home-screen and splash icon — no more wordmark squeezed into a circle",
-    "Episode list now refreshes automatically when episodes complete or you switch back to the app — no more stale \"halfway\" markers",
-    "\"Update available\" banner now opens Google Play instead of a sideload APK",
-    "Support for in-app messages from the Podda team for things like maintenance windows or new-feature tips",
-    "Smaller download size and improved crash diagnostics under the hood"
+    "Podcast channels now have status, release-date, and duration filters, plus a Hide completed toggle.",
+    "Choose your default channel order and whether to hide completed episodes in Settings \u2192 Preferences. Your choices sync across devices.",
+    "Oldest first now starts at the beginning of the channel; autoplay follows your selected order and filters."
   ]
 }

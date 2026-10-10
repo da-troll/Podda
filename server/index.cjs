@@ -53,6 +53,7 @@ app.use(session({
 
 // API routes
 app.use('/api/auth', authRouter);
+app.use('/api/preferences', require('./routes/preferences.cjs'));
 app.use('/api/podcasts', podcastRouter);
 app.use('/api/episodes', episodeRouter);
 app.use('/api/progress', playerRouter);

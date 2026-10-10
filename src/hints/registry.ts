@@ -9,6 +9,10 @@ import type { HintDef } from './types';
  */
 export const HINTS: HintDef[] = [
   {
+    id: 'channel-filters', version: 1, trigger: 'channel-open', gesture: 'tap',
+    text: 'Hide completed episodes and filter this channel. Set your default order in Settings → Preferences.',
+  },
+  {
     id: 'sidebar-swipe',
     version: 1,
     trigger: 'app-mount',

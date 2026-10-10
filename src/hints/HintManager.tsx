@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { useOverlay } from './OverlayContext';
 import { HINTS, hintStorageKey } from './registry';
 import { HintOverlay } from './HintOverlay';
 import type { HintDef, HintTrigger } from './types';
@@ -33,41 +34,37 @@ export function triggerHint(trigger: HintTrigger) {
 }
 
 export function HintManager() {
+  const { blocked } = useOverlay();
+  const [pending, setPending] = useState<HintTrigger[]>(['app-mount']);
   const [active, setActive] = useState<HintDef | null>(null);
-
   const dismiss = useCallback(() => {
     if (active) markSeen(active);
     setActive(null);
   }, [active]);
-
-  // Expose dismiss + trigger on window for cross-component use (e.g. when a
-  // gesture fires the action the hint was teaching, dismiss immediately).
   useEffect(() => {
     (window as any).__poddaDismissHint = dismiss;
+    return () => { delete (window as any).__poddaDismissHint; };
   }, [dismiss]);
-
   useEffect(() => {
-    // Migrate legacy v1.0.40 swipe-hint key to the new registry key.
-    if (localStorage.getItem('podda:swipe-hint-v1') && !localStorage.getItem('podda:hint-sidebar-swipe-v1')) {
-      localStorage.setItem('podda:hint-sidebar-swipe-v1', '1');
-      localStorage.removeItem('podda:swipe-hint-v1');
-    }
-
-    // Show app-mount hints on first render.
-    const first = pickHint('app-mount');
-    if (first) setActive(first);
-
-    const onTrigger = (e: Event) => {
-      const detail = (e as CustomEvent<HintTrigger>).detail;
-      if (!detail) return;
-      const next = pickHint(detail);
-      if (next) setActive(next);
+    if (localStorage.getItem('podda:swipe-hint-v1')) localStorage.setItem('podda:hint-sidebar-swipe-v1', '1');
+    const onTrigger = (event: Event) => {
+      const trigger = (event as CustomEvent<HintTrigger>).detail;
+      if (trigger) setPending(previous => previous.includes(trigger) ? previous : [...previous, trigger]);
     };
     window.addEventListener(HINT_EVENT, onTrigger);
     return () => window.removeEventListener(HINT_EVENT, onTrigger);
   }, []);
-
-  if (!active) return null;
+  useEffect(() => {
+    if (blocked || active || !pending.length) return;
+    const trigger = pending[0];
+    // A channel may have been left while another overlay was showing.
+    if (trigger !== 'channel-open' || window.location.hash.startsWith('#podcast/')) {
+      const next = pickHint(trigger);
+      if (next) setActive(next);
+    }
+    setPending(previous => previous.slice(1));
+  }, [blocked, active, pending]);
+  if (!active || blocked) return null;
   return <HintOverlay hint={active} onDismiss={dismiss} />;
 }
 

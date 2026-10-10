@@ -7,6 +7,12 @@ Format: one `## v<major>.<minor>.<patch> — <YYYY-MM-DD>` header per release,
 followed by bullet points. `publish-update.sh` requires an entry matching
 the version being published — releases without an entry fail.
 
+## v1.2.0 — 2026-10-10
+
+- Podcast channels now have status, release-date, and duration filters, plus a Hide completed toggle.
+- Choose your default channel order and whether to hide completed episodes in Settings → Preferences. Your choices sync across devices.
+- Oldest first now starts at the beginning of the channel; autoplay follows your selected order and filters.
+
 ## v1.1.0 — 2026-05-04
 
 - Fixed the home-screen and splash icon — no more wordmark squeezed into a circle

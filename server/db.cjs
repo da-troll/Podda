@@ -37,6 +37,9 @@ async function initDB() {
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_name VARCHAR(100)`);
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS email VARCHAR(255) UNIQUE`);
 
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS channel_sort VARCHAR(10) NOT NULL DEFAULT 'newest'`);
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS channel_hide_completed BOOLEAN NOT NULL DEFAULT FALSE`);
+
     // Podcasts (shared across users)
     await client.query(`
       CREATE TABLE IF NOT EXISTS podcasts (
