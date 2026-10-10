@@ -9,6 +9,7 @@ the version being published — releases without an entry fail.
 
 ## v1.2.0 — 2026-10-10
 
+- Android lock-screen controls now keep the player and listening progress in sync, with correct episode metadata.
 - Podcast channels now have status, release-date, and duration filters, plus a Hide completed toggle.
 - Choose your default channel order and whether to hide completed episodes in Settings → Preferences. Your choices sync across devices.
 - Oldest first now starts at the beginning of the channel; autoplay follows your selected order and filters.

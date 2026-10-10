@@ -119,10 +119,13 @@ export function usePlayerState(): PlayerContextType {
       audio.currentTime = startPos;
     }
 
+    const generation = playbackGeneration.current;
     audio.play().then(() => {
-      setState(prev => ({ ...prev, playing: true, loading: false }));
+      if (generation === playbackGeneration.current) {
+        setState(prev => ({ ...prev, playing: !audio.paused, loading: false }));
+      }
     }).catch(() => {
-      setState(prev => ({ ...prev, loading: false }));
+      if (generation === playbackGeneration.current) setState(prev => ({ ...prev, loading: false }));
     });
 
     api.saveProgress(episode.id, Math.floor(startPos), false, true).catch(() => {});
@@ -279,6 +282,14 @@ export function usePlayerState(): PlayerContextType {
     const audio = audioRef.current;
     if (!audio) return;
 
+    // Native notification controls operate on <audio> directly. Treat its
+    // events as authoritative so controls and periodic saving stay in sync.
+    const onPlay = () => setState(prev => ({ ...prev, playing: !audio.paused, loading: false }));
+    const onPause = () => {
+      setState(prev => ({ ...prev, playing: false }));
+      const current = stateRef.current.episode;
+      if (current && !audio.ended) saveProgress(current.id, audio.currentTime);
+    };
     const onTimeUpdate = () => {
       setState(prev => ({ ...prev, position: audio.currentTime, duration: audio.duration || 0 }));
     };
@@ -326,11 +337,15 @@ export function usePlayerState(): PlayerContextType {
       audio.playbackRate = state.speed;
     };
 
+    audio.addEventListener('play', onPlay);
+    audio.addEventListener('pause', onPause);
     audio.addEventListener('timeupdate', onTimeUpdate);
     audio.addEventListener('ended', onEnded);
     audio.addEventListener('loadedmetadata', onLoadedMetadata);
 
     return () => {
+      audio.removeEventListener('play', onPlay);
+      audio.removeEventListener('pause', onPause);
       audio.removeEventListener('timeupdate', onTimeUpdate);
       audio.removeEventListener('ended', onEnded);
       audio.removeEventListener('loadedmetadata', onLoadedMetadata);
