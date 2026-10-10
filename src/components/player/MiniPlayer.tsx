@@ -27,7 +27,11 @@ export function MiniPlayer({ onExpand }: Props) {
   };
 
   return (
-    <div className="mini-player" onClick={onExpand} role="button" tabIndex={0}>
+    <div className="mini-player"
+      data-episode-title={player.episode.title}
+      data-podcast-title={player.episode.podcast_title || player.podcast?.title || ''}
+      data-artwork-url={artwork || ''}
+      onClick={onExpand} role="button" tabIndex={0}>
       <div className="mini-player-progress">
         <div className="mini-player-progress-fill" style={{ width: `${livePct}%` }} />
       </div>
