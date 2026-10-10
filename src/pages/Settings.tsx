@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { api } from '../api';
 import { useAuthContext } from '../hooks/useAuth';
 import { Upload, LogOut, FileText, Megaphone, Trash2, HelpCircle } from 'lucide-react';
+import { usePreferences } from '../hooks/usePreferences';
 import type { Announcement, Page } from '../types';
 
 interface SettingsProps {
@@ -56,6 +57,8 @@ export function Settings({ onNavigate }: SettingsProps) {
           <HelpCircle size={20} />
         </button>
       </div>
+
+      <ChannelPreferences />
 
       <section className="settings-section">
         <h2>Account</h2>
@@ -230,4 +233,28 @@ function AdminAnnouncements() {
       </div>
     </section>
   );
+}
+
+function ChannelPreferences() {
+  const { preferences, loading, error: loadError, save } = usePreferences();
+  const [sort, setSort] = useState(preferences.channelSort);
+  const [hideCompleted, setHideCompleted] = useState(preferences.channelHideCompleted);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [saved, setSaved] = useState(false);
+  useEffect(() => { setSort(preferences.channelSort); setHideCompleted(preferences.channelHideCompleted); }, [preferences]);
+  const submit = async () => {
+    setSaving(true); setError(''); setSaved(false);
+    try { await save({ channelSort: sort, channelHideCompleted: hideCompleted }); setSaved(true); }
+    catch (err) { setError((err as Error).message); }
+    finally { setSaving(false); }
+  };
+  return <section className="settings-section"><h2>Preferences</h2><div className="settings-card">
+    <p className="hint">Defaults for podcast channels, saved to your account across devices.</p>
+    <label className="settings-row"><span>Default channel order</span><select className="sort-select" value={sort} disabled={loading || saving} onChange={e => { setSort(e.target.value as typeof sort); setSaved(false); }}><option value="newest">Newest first</option><option value="oldest">Oldest first</option></select></label>
+    <label className="settings-row checkbox-label"><input type="checkbox" checked={hideCompleted} disabled={loading || saving} onChange={e => { setHideCompleted(e.target.checked); setSaved(false); }} /><span>Hide completed episodes by default</span></label>
+    <p className="hint">Partially listened episodes remain visible. Defaults apply when you open a channel.</p>
+    <button className="btn-primary" disabled={loading || saving} onClick={submit}>{saving ? 'Saving…' : 'Save preferences'}</button>
+    {saved && <p role="status">Preferences saved.</p>}{(error || loadError) && <p className="error-msg" role="alert">{error || loadError}</p>}
+  </div></section>;
 }

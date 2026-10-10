@@ -4,33 +4,19 @@ const { requireAuth } = require('../auth.cjs');
 
 const router = Router();
 
-// GET /api/podcasts/:podcastId/episodes — paginated episodes for one podcast
+// Paginated channel episodes: sort and filter before pagination.
 router.get('/podcast/:podcastId', requireAuth, async (req, res) => {
-  const podcastId = parseInt(req.params.podcastId);
-  const limit = Math.min(parseInt(req.query.limit) || 50, 200);
-  const offset = parseInt(req.query.offset) || 0;
-
+  let query;
   try {
-    const result = await db.query(`
-      SELECT e.*,
-        lp.position AS listen_position,
-        lp.completed AS listen_completed
-      FROM episodes e
-      LEFT JOIN listen_progress lp ON lp.episode_id = e.id AND lp.user_id = $1
-      WHERE e.podcast_id = $2
-      ORDER BY e.pub_date DESC NULLS LAST
-      LIMIT $3 OFFSET $4
-    `, [req.session.userId, podcastId, limit, offset]);
-
-    const countResult = await db.query(
-      'SELECT COUNT(*) FROM episodes WHERE podcast_id = $1',
-      [podcastId]
-    );
-
-    res.json({
-      episodes: result.rows,
-      total: parseInt(countResult.rows[0].count),
-    });
+    const podcastId = Number(req.params.podcastId);
+    if (!Number.isSafeInteger(podcastId) || podcastId <= 0) throw new Error('Invalid podcast');
+    query = require('../channel-query.cjs').channelQuery(req.query, req.session.userId, podcastId);
+  } catch (err) { return res.status(400).json({ error: err.message }); }
+  try {
+    const { cte, where, params, limit, offset } = query;
+    const result = await db.query(`${cte} SELECT * FROM ranked WHERE ${where} ORDER BY channel_rank LIMIT $${params.length + 1} OFFSET $${params.length + 2}`, [...params, limit, offset]);
+    const count = await db.query(`${cte} SELECT COUNT(*) FROM ranked WHERE ${where}`, params);
+    res.json({ episodes: result.rows.map(({ channel_rank, ...episode }) => episode), total: Number(count.rows[0].count) });
   } catch (err) {
     console.error('[episodes] List error:', err.message);
     res.status(500).json({ error: 'Failed to fetch episodes' });

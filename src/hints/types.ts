@@ -1,4 +1,4 @@
-export type HintTrigger = 'app-mount' | 'player-open' | 'manual';
+export type HintTrigger = 'app-mount' | 'player-open' | 'channel-open' | 'manual';
 
 export type HintGesture = 'swipe-right' | 'long-press' | 'tap';
 

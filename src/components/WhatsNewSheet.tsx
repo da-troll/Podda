@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Sparkles, X } from 'lucide-react';
 
+import { useOverlay } from '../hints/OverlayContext';
+
 const LAST_SEEN_KEY = 'podda:last-seen-version';
 
 interface WhatsNew {
@@ -11,23 +13,25 @@ interface WhatsNew {
 }
 
 export function WhatsNewSheet() {
+  const { setBlocked } = useOverlay();
   const [data, setData] = useState<WhatsNew | null>(null);
 
   useEffect(() => {
     fetch('/whats-new.json', { cache: 'no-store' })
       .then(r => (r.ok ? r.json() : null))
       .then((json: WhatsNew | null) => {
-        if (!json || !json.version) return;
+        if (!json || !json.version) { setBlocked(false); return; }
         const lastSeen = localStorage.getItem(LAST_SEEN_KEY);
-        if (lastSeen === json.version) return;
+        if (lastSeen === json.version) { setBlocked(false); return; }
         setData(json);
       })
-      .catch(() => {});
+      .catch(() => setBlocked(false));
   }, []);
 
   const dismiss = () => {
     if (data) localStorage.setItem(LAST_SEEN_KEY, data.version);
     setData(null);
+    setBlocked(false);
   };
 
   if (!data) return null;

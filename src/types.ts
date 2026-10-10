@@ -89,8 +89,19 @@ export interface Announcement {
   created_by_username?: string;
 }
 
+export type ChannelSort = 'newest' | 'oldest' | 'shortest' | 'longest';
+export interface Preferences { channelSort: 'newest' | 'oldest'; channelHideCompleted: boolean; }
+export interface ChannelFilters {
+  sort: ChannelSort;
+  hideCompleted: boolean;
+  status: 'any' | 'unplayed' | 'in-progress' | 'played';
+  released_after: 'any' | '24h' | '3d' | '7d' | '14d' | '30d';
+  duration_min?: number;
+  duration_max?: number;
+}
+
 export type QueueSource =
-  | { type: 'podcast'; podcastId: number; sortOrder: 'newest' | 'oldest' }
+  | { type: 'podcast'; podcastId: number; sortOrder: ChannelSort; filters?: ChannelFilters }
   | { type: 'playlist'; playlistId: number }
   | { type: 'recent' }
   | { type: 'history'; filter?: string }

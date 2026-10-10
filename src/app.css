@@ -1262,3 +1262,14 @@ img { display: block; max-width: 100%; }
 .announcement-list-info strong { font-size: 0.85rem; }
 .announcement-list-body { font-size: 0.8rem; color: var(--text-muted); }
 .announcement-list-meta { font-size: 0.75rem; color: var(--text-muted); }
+
+/* Channel filter controls wrap on narrow screens. */
+.podcast-detail .episode-list-header { flex-wrap: wrap; gap: 12px; }
+.podcast-detail .episode-list-header-actions { flex-wrap: wrap; gap: 10px; }
+.channel-filters select { min-height: 40px; }
+.channel-filters .hint { margin-top: 12px; }
+.settings-card > .hint { margin-bottom: 12px; }
+@media (max-width: 600px) {
+  .podcast-detail .episode-list-header-actions { width: 100%; }
+  .channel-filters > label { width: 100%; }
+}

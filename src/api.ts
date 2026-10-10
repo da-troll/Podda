@@ -1,3 +1,5 @@
+import type { ChannelFilters, Episode, Preferences } from './types';
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(path, {
     headers: { 'Content-Type': 'application/json' },
@@ -10,6 +12,10 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   return res.json();
 }
 
+function progressRequest<T>(path: string, options: RequestInit) {
+  return request<T>(path, options).then(result => { window.dispatchEvent(new Event('podda:progressSaved')); return result; });
+}
+
 export const api = {
   // Auth
   login: (username: string, password: string) =>
@@ -18,6 +24,9 @@ export const api = {
     request('/api/auth/logout', { method: 'POST' }),
   me: () =>
     request('/api/auth/me'),
+
+  getPreferences: () => request<Preferences>('/api/preferences'),
+  savePreferences: (preferences: Preferences) => request<Preferences>('/api/preferences', { method: 'PUT', body: JSON.stringify(preferences) }),
 
   // Podcasts
   getPodcasts: () =>
@@ -36,8 +45,12 @@ export const api = {
     request('/api/podcasts/import-opml', { method: 'POST', body: JSON.stringify({ opml }) }),
 
   // Episodes
-  getEpisodes: (podcastId: number, limit = 50, offset = 0) =>
-    request(`/api/episodes/podcast/${podcastId}?limit=${limit}&offset=${offset}`),
+  getEpisodes: (podcastId: number, limit = 50, offset = 0, filters?: ChannelFilters, after?: number) => {
+    const query = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+    if (filters) Object.entries(filters).forEach(([key, value]) => { if (value !== undefined) query.set(key, String(value)); });
+    if (after !== undefined) query.set('after', String(after));
+    return request<{ episodes: Episode[]; total: number }>(`/api/episodes/podcast/${podcastId}?${query}`);
+  },
   getRecentEpisodes: (limit = 50) =>
     request(`/api/episodes/recent?limit=${limit}`),
   getEpisode: (id: number) =>
@@ -45,7 +58,7 @@ export const api = {
 
   // Progress
   saveProgress: (episodeId: number, position: number, completed = false, isNewSession = false) =>
-    request(`/api/progress/${episodeId}`, { method: 'PUT', body: JSON.stringify({ position, completed, isNewSession }) }),
+    progressRequest(`/api/progress/${episodeId}`, { method: 'PUT', body: JSON.stringify({ position, completed, isNewSession }) }),
   getInProgress: () =>
     request('/api/progress/in-progress'),
 
@@ -53,9 +66,9 @@ export const api = {
   getHistory: (limit = 50, offset = 0, filter?: string) =>
     request(`/api/history?limit=${limit}&offset=${offset}${filter ? `&filter=${filter}` : ''}`),
   markPlayed: (episodeId: number) =>
-    request(`/api/history/${episodeId}/mark-played`, { method: 'POST' }),
+    progressRequest(`/api/history/${episodeId}/mark-played`, { method: 'POST' }),
   markUnplayed: (episodeId: number) =>
-    request(`/api/history/${episodeId}/mark-unplayed`, { method: 'POST' }),
+    progressRequest(`/api/history/${episodeId}/mark-unplayed`, { method: 'POST' }),
 
   // Playlists
   getPlaylists: () =>

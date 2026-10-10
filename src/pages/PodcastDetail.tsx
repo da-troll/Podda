@@ -1,15 +1,21 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import DOMPurify from 'dompurify';
 import { api } from '../api';
 import { EpisodeRow } from '../components/EpisodeRow';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { ArrowLeft, RefreshCw, Trash2, Plus, Loader } from 'lucide-react';
 import { useListRefresh } from '../hooks/useListRefresh';
-import type { Podcast, Episode, Page, QueueSource } from '../types';
+import { usePreferences } from '../hooks/usePreferences';
+import { triggerHint } from '../hints/HintManager';
+import type {
+  Podcast,
+  Episode,
+  Page,
+  QueueSource,
+  ChannelFilters,
+} from '../types';
 
 const PAGE_SIZE = 50;
-
-type SortOrder = 'newest' | 'oldest';
 
 interface PodcastDetailProps {
   podcastId: number;
@@ -17,7 +23,11 @@ interface PodcastDetailProps {
   onBack?: () => void;
 }
 
-export function PodcastDetail({ podcastId, onNavigate, onBack }: PodcastDetailProps) {
+export function PodcastDetail({
+  podcastId,
+  onNavigate,
+  onBack,
+}: PodcastDetailProps) {
   const [podcast, setPodcast] = useState<Podcast | null>(null);
   const [episodes, setEpisodes] = useState<Episode[]>([]);
   const [total, setTotal] = useState(0);
@@ -26,59 +36,131 @@ export function PodcastDetail({ podcastId, onNavigate, onBack }: PodcastDetailPr
   const [refreshing, setRefreshing] = useState(false);
   const [subscribing, setSubscribing] = useState(false);
   const [showUnsubConfirm, setShowUnsubConfirm] = useState(false);
-  const [sortOrder, setSortOrder] = useState<SortOrder>('newest');
+  const { preferences, loading: preferencesLoading } = usePreferences();
+  const [filters, setFilters] = useState<ChannelFilters | null>(null);
+  const [showFilters, setShowFilters] = useState(false);
+  const [error, setError] = useState('');
+  const requestVersion = useRef(0);
+  const loadedCount = useRef(PAGE_SIZE);
+  const defaults = useCallback(
+    (): ChannelFilters => ({
+      sort: preferences.channelSort,
+      hideCompleted: preferences.channelHideCompleted,
+      status: 'any',
+      released_after: 'any',
+    }),
+    [preferences],
+  );
+  useEffect(() => {
+    if (!preferencesLoading) setFilters((current) => current ?? defaults());
+  }, [preferencesLoading, defaults]);
 
-  const load = () => {
-    Promise.all([
-      api.getPodcast(podcastId) as Promise<Podcast>,
-      api.getEpisodes(podcastId, PAGE_SIZE, 0) as Promise<{ episodes: Episode[]; total: number }>,
-    ]).then(([pod, data]) => {
-      setPodcast(pod);
-      setEpisodes(data.episodes);
-      setTotal(data.total);
-    }).catch(console.error)
-      .finally(() => setLoading(false));
-  };
+  const fetchEpisodes = useCallback(
+    async (append = false) => {
+      if (!filters) return;
+      const version = ++requestVersion.current;
+      const offset = append ? loadedCount.current : 0;
+      if (append) setLoadingMore(true);
+      try {
+        // Refresh every loaded page; the API caps each request at 200 rows.
+        const limit = append
+          ? PAGE_SIZE
+          : Math.max(loadedCount.current, PAGE_SIZE);
+        const rows: Episode[] = [];
+        let total = 0;
+        for (let fetched = 0; fetched < limit;) {
+          const batchSize = Math.min(200, limit - fetched);
+          const data = await api.getEpisodes(
+            podcastId,
+            batchSize,
+            offset + fetched,
+            filters,
+          );
+          if (version !== requestVersion.current) return;
+          total = data.total;
+          rows.push(...data.episodes);
+          fetched += data.episodes.length;
+          if (data.episodes.length < batchSize || offset + fetched >= total)
+            break;
+        }
+        setEpisodes((previous) => (append ? [...previous, ...rows] : rows));
+        loadedCount.current = offset + rows.length;
+        setTotal(total);
+        setError('');
+      } catch (err) {
+        if (version === requestVersion.current)
+          setError((err as Error).message);
+      } finally {
+        if (version === requestVersion.current) {
+          setLoading(false);
+          setLoadingMore(false);
+        }
+      }
+    },
+    [podcastId, filters],
+  );
 
-  useEffect(load, [podcastId]);
-
-  // Refresh progress/completion state in-place. Preserves pagination by
-  // refetching `episodes.length` rows from offset 0.
-  const reloadEpisodes = useCallback(() => {
-    setEpisodes(prev => {
-      const limit = Math.max(prev.length, PAGE_SIZE);
-      api.getEpisodes(podcastId, limit, 0).then(data => {
-        setEpisodes((data as { episodes: Episode[]; total: number }).episodes);
-        setTotal((data as { episodes: Episode[]; total: number }).total);
-      }).catch(() => {});
-      return prev;
-    });
+  useEffect(() => {
+    let live = true;
+    api
+      .getPodcast(podcastId)
+      .then((value) => {
+        if (live) setPodcast(value as Podcast);
+      })
+      .catch((err) => {
+        if (live) {
+          setError(err.message);
+          setLoading(false);
+        }
+      });
+    return () => {
+      live = false;
+    };
   }, [podcastId]);
-
+  useEffect(() => {
+    if (!filters) return;
+    loadedCount.current = PAGE_SIZE;
+    setEpisodes([]);
+    setTotal(0);
+    setLoading(true);
+    setLoadingMore(false);
+    fetchEpisodes();
+    return () => {
+      requestVersion.current++;
+    };
+  }, [fetchEpisodes, filters]);
+  const reloadEpisodes = useCallback(() => {
+    void fetchEpisodes();
+  }, [fetchEpisodes]);
   useListRefresh(reloadEpisodes);
+  useEffect(() => {
+    window.addEventListener('podda:progressSaved', reloadEpisodes);
+    return () =>
+      window.removeEventListener('podda:progressSaved', reloadEpisodes);
+  }, [reloadEpisodes]);
+  useEffect(() => {
+    if (!loading && podcast && filters) triggerHint('channel-open');
+  }, [loading, podcast, filters]);
 
-  const handleLoadMore = async () => {
-    setLoadingMore(true);
-    try {
-      const data = await api.getEpisodes(podcastId, PAGE_SIZE, episodes.length) as { episodes: Episode[]; total: number };
-      setEpisodes(prev => [...prev, ...data.episodes]);
-      setTotal(data.total);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoadingMore(false);
-    }
-  };
-
+  const updateFilters = (partial: Partial<ChannelFilters>) =>
+    setFilters((current) => (current ? { ...current, ...partial } : current));
   const handleRefresh = async () => {
     setRefreshing(true);
     try {
       await api.refreshPodcast(podcastId);
-      load();
+      await fetchEpisodes();
     } catch (err) {
-      console.error(err);
+      setError((err as Error).message);
+    } finally {
+      setRefreshing(false);
     }
-    setRefreshing(false);
+  };
+  const markEpisode = async (id: number, played: boolean) => {
+    try {
+      await (played ? api.markPlayed(id) : api.markUnplayed(id));
+    } catch (err) {
+      setError((err as Error).message);
+    }
   };
 
   const handleSubscribe = async () => {
@@ -86,7 +168,7 @@ export function PodcastDetail({ podcastId, onNavigate, onBack }: PodcastDetailPr
     setSubscribing(true);
     try {
       await api.subscribe(podcast.feed_url);
-      setPodcast(prev => prev ? { ...prev, is_subscribed: true } : prev);
+      setPodcast((prev) => (prev ? { ...prev, is_subscribed: true } : prev));
     } catch (err) {
       console.error(err);
     }
@@ -98,92 +180,313 @@ export function PodcastDetail({ podcastId, onNavigate, onBack }: PodcastDetailPr
     onNavigate({ type: 'library' });
   };
 
-  const sortedEpisodes = useMemo(() => {
-    const sorted = [...episodes].sort((a, b) => {
-      const da = a.pub_date ? new Date(a.pub_date).getTime() : 0;
-      const db = b.pub_date ? new Date(b.pub_date).getTime() : 0;
-      return sortOrder === 'newest' ? db - da : da - db;
-    });
-    return sorted;
-  }, [episodes, sortOrder]);
-
-  const queueSource = useMemo<QueueSource>(() => ({
-    type: 'podcast', podcastId, sortOrder,
-  }), [podcastId, sortOrder]);
+  const queueSource = useMemo<QueueSource>(
+    () => ({
+      type: 'podcast',
+      podcastId,
+      sortOrder: filters?.sort ?? 'newest',
+      filters: filters ?? undefined,
+    }),
+    [podcastId, filters],
+  );
 
   const hasMore = episodes.length < total;
 
-  if (loading) return <div className="page-loading">Loading...</div>;
-  if (!podcast) return <div className="page-loading">Podcast not found</div>;
+  if (preferencesLoading || (!podcast && loading) || !filters)
+    return <div className="page-loading">Loading...</div>;
+  if (!podcast || !filters)
+    return <div className="page-loading">{error || 'Podcast not found'}</div>;
 
   return (
     <div className="page podcast-detail">
       <div className="page-header">
-        <button className="btn-icon" onClick={() => onBack ? onBack() : onNavigate({ type: 'library' })}>
+        <button
+          className="btn-icon"
+          onClick={() => (onBack ? onBack() : onNavigate({ type: 'library' }))}
+        >
           <ArrowLeft size={20} />
         </button>
         <h1>{podcast.title}</h1>
         {podcast.is_subscribed ? (
-          <button className="btn-danger btn-sm" onClick={() => setShowUnsubConfirm(true)}>
+          <button
+            className="btn-danger btn-sm"
+            onClick={() => setShowUnsubConfirm(true)}
+          >
             <Trash2 size={14} /> Unsubscribe
           </button>
         ) : (
-          <button className="btn-primary btn-sm" onClick={handleSubscribe} disabled={subscribing}>
-            {subscribing ? <><Loader size={14} className="spinning" /> Subscribing…</> : <><Plus size={14} /> Subscribe</>}
+          <button
+            className="btn-primary btn-sm"
+            onClick={handleSubscribe}
+            disabled={subscribing}
+          >
+            {subscribing ? (
+              <>
+                <Loader size={14} className="spinning" /> Subscribing…
+              </>
+            ) : (
+              <>
+                <Plus size={14} /> Subscribe
+              </>
+            )}
           </button>
         )}
       </div>
 
       <div className="podcast-hero">
         {podcast.artwork_url && (
-          <img src={podcast.artwork_url} alt={podcast.title} className="podcast-hero-artwork" />
+          <img
+            src={podcast.artwork_url}
+            alt={podcast.title}
+            className="podcast-hero-artwork"
+          />
         )}
         <div className="podcast-hero-info">
-          {podcast.author && <div className="podcast-hero-author">{podcast.author}</div>}
+          {podcast.author && (
+            <div className="podcast-hero-author">{podcast.author}</div>
+          )}
           {podcast.description && (
             <div
               className="podcast-hero-desc"
-              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(podcast.description) }}
+              dangerouslySetInnerHTML={{
+                __html: DOMPurify.sanitize(podcast.description),
+              }}
             />
           )}
         </div>
       </div>
 
       <div className="episode-list-header">
-        <span>{episodes.length < total ? `${episodes.length} of ${total} episodes` : `${total} episodes`}</span>
+        <span>
+          {episodes.length < total
+            ? `${episodes.length} of ${total} episodes`
+            : `${total} episodes`}
+        </span>
         <div className="episode-list-header-actions">
           <select
             className="sort-select"
-            value={sortOrder}
-            onChange={e => setSortOrder(e.target.value as SortOrder)}
+            aria-label="Episode order"
+            value={filters.sort}
+            onChange={(e) =>
+              updateFilters({ sort: e.target.value as ChannelFilters['sort'] })
+            }
           >
             <option value="newest">Newest first</option>
             <option value="oldest">Oldest first</option>
+            <option value="shortest">Shortest first</option>
+            <option value="longest">Longest first</option>
           </select>
+          <label className="checkbox-label">
+            <input
+              type="checkbox"
+              checked={filters.hideCompleted}
+              onChange={(e) =>
+                updateFilters({
+                  hideCompleted: e.target.checked,
+                  status:
+                    e.target.checked && filters.status === 'played'
+                      ? 'any'
+                      : filters.status,
+                })
+              }
+            />{' '}
+            Hide completed
+          </label>
+          <button
+            className="btn-secondary btn-sm"
+            aria-expanded={showFilters}
+            aria-controls="channel-filters"
+            onClick={() => setShowFilters((value) => !value)}
+          >
+            Filters
+          </button>
           {podcast.is_subscribed && (
-            <button className="btn-icon" onClick={handleRefresh} disabled={refreshing} title="Refresh">
+            <button
+              className="btn-icon"
+              onClick={handleRefresh}
+              disabled={refreshing}
+              title="Refresh"
+            >
               <RefreshCw size={16} className={refreshing ? 'spinning' : ''} />
             </button>
           )}
         </div>
       </div>
 
+      {error && (
+        <div className="error-msg" role="alert">
+          {error}{' '}
+          <button className="btn-secondary" onClick={reloadEpisodes}>
+            Retry
+          </button>
+        </div>
+      )}
+      {showFilters && (
+        <div className="playlist-settings channel-filters" id="channel-filters">
+          <label>
+            <span>Episode status</span>
+            <select
+              value={filters.status}
+              onChange={(e) =>
+                updateFilters({
+                  status: e.target.value as ChannelFilters['status'],
+                  hideCompleted:
+                    e.target.value === 'played' ? false : filters.hideCompleted,
+                })
+              }
+            >
+              <option value="any">Any status</option>
+              <option value="unplayed">Unplayed</option>
+              <option value="in-progress">In progress</option>
+              <option value="played">Played</option>
+            </select>
+          </label>
+          <label>
+            <span>Released</span>
+            <select
+              value={filters.released_after}
+              onChange={(e) =>
+                updateFilters({
+                  released_after: e.target
+                    .value as ChannelFilters['released_after'],
+                })
+              }
+            >
+              <option value="any">Any time</option>
+              <option value="24h">Last 24 hours</option>
+              <option value="3d">Last 3 days</option>
+              <option value="7d">Last week</option>
+              <option value="14d">Last 2 weeks</option>
+              <option value="30d">Last month</option>
+            </select>
+          </label>
+          {(['duration_min', 'duration_max'] as const).map((key) => (
+            <label key={key}>
+              <span>
+                {key === 'duration_min'
+                  ? 'Minimum duration'
+                  : 'Maximum duration'}
+              </span>
+              <select
+                value={filters[key] ?? ''}
+                onChange={(e) => {
+                  const value = e.target.value
+                    ? Number(e.target.value)
+                    : undefined;
+                  const partial: Partial<ChannelFilters> = { [key]: value };
+                  if (
+                    key === 'duration_min' &&
+                    value !== undefined &&
+                    filters.duration_max !== undefined &&
+                    value > filters.duration_max
+                  )
+                    partial.duration_max = value;
+                  if (
+                    key === 'duration_max' &&
+                    value !== undefined &&
+                    filters.duration_min !== undefined &&
+                    value < filters.duration_min
+                  )
+                    partial.duration_min = value;
+                  updateFilters(partial);
+                }}
+              >
+                <option value="">No limit</option>
+                <option value="900">15 min</option>
+                <option value="1800">30 min</option>
+                <option value="3600">1 hour</option>
+                <option value="7200">2 hours</option>
+              </select>
+            </label>
+          ))}
+          <button
+            className="btn-secondary"
+            onClick={() => setFilters(defaults())}
+          >
+            Reset to defaults
+          </button>
+          <p className="hint">
+            These filters apply to this channel view. Set your defaults in{' '}
+            <button
+              className="btn-secondary btn-sm"
+              onClick={() => onNavigate({ type: 'settings' })}
+            >
+              Settings → Preferences
+            </button>
+            .
+          </p>
+        </div>
+      )}
+      {!showFilters &&
+        (filters.status !== 'any' ||
+          filters.released_after !== 'any' ||
+          filters.duration_min !== undefined ||
+          filters.duration_max !== undefined) && (
+          <div className="filter-summary">
+            Additional filters active{' '}
+            <button
+              className="btn-secondary btn-sm"
+              onClick={() => setShowFilters(true)}
+            >
+              Edit filters
+            </button>
+          </div>
+        )}
+      {loading && (
+        <div className="page-loading" role="status">
+          Loading episodes…
+        </div>
+      )}
+      {!loading && !episodes.length && !error && (
+        <div className="empty-state">
+          No episodes match these filters.{' '}
+          <button
+            className="btn-secondary"
+            onClick={() =>
+              setFilters({
+                sort: preferences.channelSort,
+                hideCompleted: false,
+                status: 'any',
+                released_after: 'any',
+              })
+            }
+          >
+            Show all episodes
+          </button>
+        </div>
+      )}
       <div className="episode-list">
-        {sortedEpisodes.map((ep, idx) => (
+        {episodes.map((ep, idx) => (
           <EpisodeRow
             key={ep.id}
             episode={ep}
             podcast={podcast}
-            queue={sortedEpisodes.slice(idx + 1)}
+            queue={episodes.slice(idx + 1)}
             queueSource={queueSource}
+            onMarkPlayed={
+              !ep.listen_completed
+                ? () => void markEpisode(ep.id, true)
+                : undefined
+            }
+            onMarkUnplayed={
+              ep.listen_completed
+                ? () => void markEpisode(ep.id, false)
+                : undefined
+            }
           />
         ))}
       </div>
 
       {hasMore && (
         <div className="load-more-container">
-          <button className="btn-secondary" onClick={handleLoadMore} disabled={loadingMore}>
-            {loadingMore ? 'Loading…' : `Load more (${total - episodes.length} remaining)`}
+          <button
+            className="btn-secondary"
+            onClick={() => void fetchEpisodes(true)}
+            disabled={loadingMore || loading}
+          >
+            {loadingMore
+              ? 'Loading…'
+              : `Load more (${total - episodes.length} remaining)`}
           </button>
         </div>
       )}

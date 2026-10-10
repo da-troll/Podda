@@ -29,6 +29,14 @@ Built as a Castbox replacement for the Trollefsen household.
 - **Re-listen detection** — resets completion if replaying from an early position
 - **Play count** — tracks how many times each episode has been played
 
+### Podcast Channels
+- Sort the entire channel newest, oldest, shortest, or longest first
+- Hide completed episodes while keeping partially listened episodes visible
+- Filter by listening status, release window, and duration
+- Autoplay follows channel sorting and filters beyond the loaded page
+- Set account defaults in **Settings → Preferences**; preferences sync across devices
+- Contextual first-visit hint and release notes explain the controls
+
 ### Playlists
 - **Manual playlists** — curated episode lists with drag-to-reorder
 - **Smart playlists** — auto-filtering based on configurable rules:
@@ -153,6 +161,13 @@ All endpoints require authentication via session cookie (except login).
 | POST | `/api/auth/logout` | End session |
 | GET | `/api/auth/me` | Current user (returns `null` if unauthenticated) |
 
+### Preferences
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | `/api/preferences` | Load account channel defaults |
+| PUT | `/api/preferences` | Save `channelSort` (`newest`/`oldest`) and `channelHideCompleted` (boolean) |
+
 ### Podcasts
 
 | Method | Path | Purpose |
@@ -170,6 +185,13 @@ All endpoints require authentication via session cookie (except login).
 | GET | `/api/episodes/podcast/:id` | Episodes for one podcast (paginated, limit/offset) |
 | GET | `/api/episodes/recent` | Recent episodes across all subscriptions |
 | GET | `/api/episodes/:id` | Single episode detail |
+
+Channel episode requests accept `sort` (`newest`, `oldest`, `shortest`, `longest`),
+`hideCompleted` (`true`/`false`), `status` (`any`, `unplayed`, `in-progress`, `played`),
+`released_after` (`any`, `24h`, `3d`, `7d`, `14d`, `30d`), and `duration_min`/`duration_max`
+(in seconds). Filters apply before `limit`/`offset`, and `total` counts matching episodes.
+The optional `after` episode ID continues playback in the selected order, including when
+the anchor episode has become hidden by the current filters.
 
 ### Progress
 

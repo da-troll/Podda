@@ -61,6 +61,7 @@ function smartRewindPosition(position: number, progressUpdatedAt?: string | null
 }
 
 export function usePlayerState(): PlayerContextType {
+  const playbackGeneration = useRef(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const lastSavedPosRef = useRef<number>(0);
   const queueRef = useRef<Episode[]>([]);
@@ -86,12 +87,15 @@ export function usePlayerState(): PlayerContextType {
     sleepTimerRemaining: null,
   });
 
+  const stateRef = useRef(state);
+  stateRef.current = state;
+
   // Save progress to backend
   const saveProgress = useCallback((episodeId: number, pos: number, completed = false) => {
     const rounded = Math.floor(pos);
     if (rounded === lastSavedPosRef.current && !completed) return;
     lastSavedPosRef.current = rounded;
-    api.saveProgress(episodeId, rounded, completed).catch(() => {});
+    return api.saveProgress(episodeId, rounded, completed).catch(() => {});
   }, []);
 
   // Play an episode
@@ -99,6 +103,7 @@ export function usePlayerState(): PlayerContextType {
     const audio = audioRef.current;
     if (!audio) return;
 
+    playbackGeneration.current++;
     setState(prev => ({ ...prev, episode, podcast: podcast || prev.podcast, loading: true, playing: false }));
 
     try {
@@ -236,10 +241,9 @@ export function usePlayerState(): PlayerContextType {
       let episodes: Episode[] = [];
       switch (src.type) {
         case 'podcast': {
-          const data = await api.getEpisodes(src.podcastId, 200, 0) as { episodes: Episode[]; total: number };
-          episodes = data.episodes;
-          if (src.sortOrder === 'oldest') episodes = [...episodes].reverse();
-          break;
+          const filters = src.filters ?? { sort: src.sortOrder, hideCompleted: false, status: 'any' as const, released_after: 'any' as const };
+          const data = await api.getEpisodes(src.podcastId, 200, 0, filters, episodeId);
+          return data.episodes;
         }
         case 'playlist': {
           const data = await api.getPlaylistEpisodes(src.playlistId) as { playlist: unknown; episodes: Episode[] };
@@ -292,34 +296,29 @@ export function usePlayerState(): PlayerContextType {
       return { ...prev, playing: false, episode: next, queue: rest, loading: true };
     };
 
-    const onEnded = () => {
-      const audio = audioRef.current;
-      setState(prev => {
-        if (prev.episode) saveProgress(prev.episode.id, audio?.duration || 0, true);
-
-        // Sleep timer set to "end of episode" — stop here and clear the timer
-        if (sleepTimerRef.current?.type === 'end-of-episode') {
-          sleepTimerRef.current = null;
-          return { ...prev, playing: false, sleepTimer: null, sleepTimerRemaining: null };
-        }
-
-        if (!autoPlayRef.current) return { ...prev, playing: false };
-
-        // Queue has episodes — play next immediately
-        if (queueRef.current.length > 0) return playNextFromQueue(prev);
-
-        // Queue empty but we have a source — rebuild asynchronously
-        if (queueSourceRef.current && prev.episode) {
-          const currentId = prev.episode.id;
-          rebuildQueue(currentId).then(rebuilt => {
-            if (rebuilt.length > 0) {
-              queueRef.current = rebuilt;
-              setState(p => playNextFromQueue(p));
-            }
-          });
-        }
-        return { ...prev, playing: false };
-      });
+    const onEnded = async () => {
+      const current = stateRef.current;
+      const generation = playbackGeneration.current;
+      if (!current.episode) return;
+      const saved = saveProgress(current.episode.id, audio.duration || 0, true);
+      setState(prev => ({ ...prev, playing: false }));
+      if (sleepTimerRef.current?.type === 'end-of-episode') {
+        sleepTimerRef.current = null;
+        setState(prev => ({ ...prev, sleepTimer: null, sleepTimerRemaining: null }));
+        return;
+      }
+      if (!autoPlayRef.current) return;
+      // Preserve the shuffled remainder; otherwise revalidate channel filters.
+      if (queueRef.current.length > 0 && (queueSourceRef.current?.type !== 'podcast' || shuffleRef.current)) {
+        setState(playNextFromQueue(current));
+        return;
+      }
+      if (!queueSourceRef.current) return;
+      await saved;
+      const rebuilt = await rebuildQueue(current.episode.id);
+      if (playbackGeneration.current !== generation || !autoPlayRef.current) return;
+      queueRef.current = rebuilt;
+      setState(rebuilt.length ? playNextFromQueue(stateRef.current) : { ...stateRef.current, queue: [] });
     };
 
     const onLoadedMetadata = () => {
@@ -458,6 +457,7 @@ export function usePlayerState(): PlayerContextType {
       audio.pause();
       audio.src = '';
     }
+    playbackGeneration.current++;
     queueRef.current = [];
     queueSourceRef.current = null;
     sleepTimerRef.current = null;
