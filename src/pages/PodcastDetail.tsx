@@ -3,7 +3,15 @@ import DOMPurify from 'dompurify';
 import { api } from '../api';
 import { EpisodeRow } from '../components/EpisodeRow';
 import { ConfirmModal } from '../components/ConfirmModal';
-import { ArrowLeft, RefreshCw, Trash2, Plus, Loader } from 'lucide-react';
+import {
+  ArrowLeft,
+  RefreshCw,
+  Trash2,
+  Plus,
+  Loader,
+  SlidersHorizontal,
+} from 'lucide-react';
+import { BottomSheet } from '../components/BottomSheet';
 import { useListRefresh } from '../hooks/useListRefresh';
 import { usePreferences } from '../hooks/usePreferences';
 import { triggerHint } from '../hints/HintManager';
@@ -142,6 +150,16 @@ export function PodcastDetail({
     if (!loading && podcast && filters) triggerHint('channel-open');
   }, [loading, podcast, filters]);
 
+  const closeFilters = useCallback(() => setShowFilters(false), []);
+  const activeFilterCount = filters
+    ? [
+        filters.hideCompleted,
+        filters.status !== 'any',
+        filters.released_after !== 'any',
+        filters.duration_min !== undefined,
+        filters.duration_max !== undefined,
+      ].filter(Boolean).length
+    : 0;
   const updateFilters = (partial: Partial<ChannelFilters>) =>
     setFilters((current) => (current ? { ...current, ...partial } : current));
   const handleRefresh = async () => {
@@ -276,29 +294,16 @@ export function PodcastDetail({
             <option value="shortest">Shortest first</option>
             <option value="longest">Longest first</option>
           </select>
-          <label className="checkbox-label">
-            <input
-              type="checkbox"
-              checked={filters.hideCompleted}
-              onChange={(e) =>
-                updateFilters({
-                  hideCompleted: e.target.checked,
-                  status:
-                    e.target.checked && filters.status === 'played'
-                      ? 'any'
-                      : filters.status,
-                })
-              }
-            />{' '}
-            Hide completed
-          </label>
           <button
-            className="btn-secondary btn-sm"
-            aria-expanded={showFilters}
-            aria-controls="channel-filters"
-            onClick={() => setShowFilters((value) => !value)}
+            className={`filters-btn${activeFilterCount ? ' active' : ''}`}
+            data-hint="channel-filters"
+            aria-haspopup="dialog"
+            onClick={() => setShowFilters(true)}
           >
-            Filters
+            <SlidersHorizontal size={16} /> Filters
+            {activeFilterCount > 0 && (
+              <span className="filters-btn-count">{activeFilterCount}</span>
+            )}
           </button>
           {podcast.is_subscribed && (
             <button
@@ -307,7 +312,7 @@ export function PodcastDetail({
               disabled={refreshing}
               title="Refresh"
             >
-              <RefreshCw size={16} className={refreshing ? 'spinning' : ''} />
+              <RefreshCw size={18} className={refreshing ? 'spinning' : ''} />
             </button>
           )}
         </div>
@@ -322,7 +327,40 @@ export function PodcastDetail({
         </div>
       )}
       {showFilters && (
-        <div className="playlist-settings channel-filters" id="channel-filters">
+        <BottomSheet
+          title="Filter episodes"
+          onClose={closeFilters}
+          footer={
+            <>
+              <button
+                className="btn-secondary"
+                onClick={() => setFilters(defaults())}
+              >
+                Reset to defaults
+              </button>
+              <button className="btn-primary" onClick={closeFilters}>
+                Done
+              </button>
+            </>
+          }
+        >
+          <label className="sheet-toggle">
+            <span>Hide completed</span>
+            <input
+              type="checkbox"
+              role="switch"
+              checked={filters.hideCompleted}
+              onChange={(e) =>
+                updateFilters({
+                  hideCompleted: e.target.checked,
+                  status:
+                    e.target.checked && filters.status === 'played'
+                      ? 'any'
+                      : filters.status,
+                })
+              }
+            />
+          </label>
           <label>
             <span>Episode status</span>
             <select
@@ -399,39 +437,23 @@ export function PodcastDetail({
               </select>
             </label>
           ))}
-          <button
-            className="btn-secondary"
-            onClick={() => setFilters(defaults())}
-          >
-            Reset to defaults
-          </button>
           <p className="hint">
-            These filters apply to this channel view. Set your defaults in{' '}
-            <button
-              className="btn-secondary btn-sm"
-              onClick={() => onNavigate({ type: 'settings' })}
+            These filters apply to this channel view. Set your defaults in
+            Settings →{' '}
+            <a
+              href="#settings"
+              className="text-link"
+              onClick={(e) => {
+                e.preventDefault();
+                onNavigate({ type: 'settings' });
+              }}
             >
-              Settings → Preferences
-            </button>
+              Preferences
+            </a>
             .
           </p>
-        </div>
+        </BottomSheet>
       )}
-      {!showFilters &&
-        (filters.status !== 'any' ||
-          filters.released_after !== 'any' ||
-          filters.duration_min !== undefined ||
-          filters.duration_max !== undefined) && (
-          <div className="filter-summary">
-            Additional filters active{' '}
-            <button
-              className="btn-secondary btn-sm"
-              onClick={() => setShowFilters(true)}
-            >
-              Edit filters
-            </button>
-          </div>
-        )}
       {loading && (
         <div className="page-loading" role="status">
           Loading episodes…

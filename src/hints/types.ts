@@ -21,6 +21,11 @@ export interface HintDef {
   /** Instruction text. Keep short — one sentence. */
   text: string;
 
+  /** CSS selector of the element to spotlight. The overlay cuts a hole
+   *  around it and points the gesture at it; without one the gesture is
+   *  centred on screen. */
+  target?: string;
+
   /** Optional runtime predicate — e.g. only show on touch devices. */
   condition?: () => boolean;
 }

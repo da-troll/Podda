@@ -218,11 +218,11 @@ img { display: block; max-width: 100%; }
 .sort-select {
   appearance: none;
   background: var(--bg-hover);
-  border: 1px solid var(--glass-border);
+  border: 1px solid transparent;
   color: var(--text);
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   font-family: inherit;
-  padding: 5px 28px 5px 10px;
+  padding: 6px 30px 6px 12px;
   border-radius: var(--radius);
   cursor: pointer;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238888a0' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
@@ -230,7 +230,7 @@ img { display: block; max-width: 100%; }
   background-position: right 8px center;
 }
 .sort-select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-20); }
-.sort-select:hover { border-color: rgba(255,255,255,0.15); }
+.sort-select:hover { background-color: var(--bg-active); }
 
 /* ── Episode List ────────────────────────────────────────── */
 .episode-list { display: flex; flex-direction: column; }
@@ -1104,6 +1104,15 @@ img { display: block; max-width: 100%; }
   font-size: 1rem; font-weight: 600;
   line-height: 1.5;
 }
+/* Spotlight: the overlay goes clear and a ring around the target casts
+   the dim backdrop, leaving the target visible through a cutout. */
+.hint-overlay--spotlight { background: transparent; }
+.hint-spotlight {
+  position: absolute; border-radius: 14px; pointer-events: none;
+  box-shadow: 0 0 0 2px var(--accent), 0 0 0 200vmax rgba(0, 0, 0, 0.82);
+}
+.hint-anchor { position: absolute; width: 0; height: 0; }
+.hint-text--anchored { top: auto; }
 /* Swipe variant keeps text on the left half */
 .hint-overlay:has(.hint-gesture-swipe) .hint-text {
   left: 25%;
@@ -1263,13 +1272,81 @@ img { display: block; max-width: 100%; }
 .announcement-list-body { font-size: 0.8rem; color: var(--text-muted); }
 .announcement-list-meta { font-size: 0.75rem; color: var(--text-muted); }
 
-/* Channel filter controls wrap on narrow screens. */
+/* Channel header: order dropdown and Filters button share one size. */
 .podcast-detail .episode-list-header { flex-wrap: wrap; gap: 12px; }
-.podcast-detail .episode-list-header-actions { flex-wrap: wrap; gap: 10px; }
-.channel-filters select { min-height: 40px; }
-.channel-filters .hint { margin-top: 12px; }
+.podcast-detail .episode-list-header-actions { gap: 10px; }
+.podcast-detail .episode-list-header-actions .sort-select,
+.filters-btn { height: 42px; font-size: 0.95rem; border-radius: 10px; }
+.filters-btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 0 16px; background: var(--bg-hover); color: var(--text);
+  border: 1px solid transparent; transition: background 0.15s;
+}
+.filters-btn:hover { background: var(--bg-active); }
+.filters-btn.active { background: var(--accent-15); color: var(--accent-hover); }
+.filters-btn-count {
+  min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px;
+  display: grid; place-items: center;
+  background: var(--accent); color: #fff; font-size: 0.78rem; font-weight: 700;
+}
 .settings-card > .hint { margin-bottom: 12px; }
+.text-link { color: var(--accent); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
 @media (max-width: 600px) {
   .podcast-detail .episode-list-header-actions { width: 100%; }
-  .channel-filters > label { width: 100%; }
+  .podcast-detail .episode-list-header-actions .btn-icon { margin-left: auto; }
 }
+
+/* ── Bottom Sheet (filters, playlist settings) ──────────── */
+.sheet-backdrop {
+  position: fixed; inset: 0; z-index: 190;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex; align-items: flex-end; justify-content: center;
+  animation: fade-in 0.18s ease-out;
+}
+.sheet {
+  width: 100%; max-width: 560px;
+  max-height: calc(100dvh - 40px - var(--podda-inset-top, 0px));
+  display: flex; flex-direction: column;
+  background: var(--bg-surface);
+  border-top-left-radius: 20px; border-top-right-radius: 20px;
+  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.4);
+  animation: slide-up 0.22s ease-out;
+}
+.sheet-grip { width: 40px; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.18); margin: 10px auto 4px; flex-shrink: 0; }
+.sheet-header { display: flex; align-items: center; justify-content: space-between; padding: 6px 12px 6px 22px; flex-shrink: 0; }
+.sheet-header h2 { font-size: 1.25rem; font-weight: 700; }
+.sheet-close { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; color: var(--text-muted); }
+@media (hover: hover) { .sheet-close:hover { background: var(--bg-hover); color: var(--text); } }
+.sheet-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 8px 22px 12px; }
+.sheet-body label { display: block; margin-bottom: 18px; }
+.sheet-body label > span { display: block; font-size: 1rem; color: var(--text-muted); margin-bottom: 8px; }
+.sheet-body select, .sheet-body input[type="text"] {
+  width: 100%; min-height: 52px; padding: 0 16px;
+  background: var(--bg); color: var(--text);
+  border: 1px solid var(--glass-border); border-radius: 12px;
+  font-size: 1.1rem; font-family: inherit; outline: none;
+}
+.sheet-body select { appearance: auto; }
+.sheet-body select:focus, .sheet-body input[type="text"]:focus { border-color: var(--accent); }
+.sheet-body .hint { font-size: 1rem; line-height: 1.55; margin: 4px 0 8px; }
+.sheet-toggle { display: flex !important; align-items: center; justify-content: space-between; gap: 16px; min-height: 56px; cursor: pointer; }
+.sheet-toggle > span { color: var(--text) !important; font-size: 1.1rem !important; margin: 0 !important; }
+.sheet-toggle input[role="switch"] {
+  appearance: none; -webkit-appearance: none; flex-shrink: 0;
+  position: relative; width: 52px; height: 30px; border-radius: 15px;
+  background: var(--bg-active); cursor: pointer; transition: background 0.15s;
+}
+.sheet-toggle input[role="switch"]::before {
+  content: ''; position: absolute; top: 3px; left: 3px;
+  width: 24px; height: 24px; border-radius: 50%; background: #fff;
+  transition: transform 0.15s;
+}
+.sheet-toggle input[role="switch"]:checked { background: var(--accent); }
+.sheet-toggle input[role="switch"]:checked::before { transform: translateX(22px); }
+.sheet-toggle input[role="switch"]:focus-visible { outline: 2px solid var(--accent-hover); outline-offset: 2px; }
+.sheet-footer {
+  display: flex; gap: 12px; flex-shrink: 0;
+  padding: 14px 22px calc(16px + var(--podda-inset-bottom, env(safe-area-inset-bottom, 0px)));
+  border-top: 1px solid var(--glass-border);
+}
+.sheet-footer > button { flex: 1; justify-content: center; min-height: 48px; font-size: 1rem; }

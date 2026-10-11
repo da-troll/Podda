@@ -4,6 +4,7 @@ import { EpisodeRow } from '../components/EpisodeRow';
 import { SmartPlaylistBuilder, filterSummary } from '../components/SmartPlaylistBuilder';
 import { ArrowLeft, Trash2, GripVertical, SkipForward, ListEnd, Settings2, Zap } from 'lucide-react';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { BottomSheet } from '../components/BottomSheet';
 import { useListRefresh } from '../hooks/useListRefresh';
 import type { Playlist, Episode, SmartPlaylistRules, Page, QueueSource } from '../types';
 
@@ -32,6 +33,8 @@ export function PlaylistDetail({ playlistId, onNavigate }: PlaylistDetailProps) 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const dragItem = useRef<number | null>(null);
   const dragOver = useRef<number | null>(null);
+
+  const closeSettings = useCallback(() => setShowSettings(false), []);
 
   const queueSource = useMemo<QueueSource>(() => ({
     type: 'playlist', playlistId,
@@ -146,7 +149,7 @@ export function PlaylistDetail({ playlistId, onNavigate }: PlaylistDetailProps) 
             {playlist.auto_remove_completed && ' · Auto-hide completed'}
           </div>
         </div>
-        <button className="btn-icon" onClick={() => setShowSettings(!showSettings)}>
+        <button className="btn-icon" aria-label="Playlist settings" aria-haspopup="dialog" onClick={() => setShowSettings(true)}>
           <Settings2 size={18} />
         </button>
       </div>
@@ -162,7 +165,18 @@ export function PlaylistDetail({ playlistId, onNavigate }: PlaylistDetailProps) 
       )}
 
       {showSettings && (
-        <div className="playlist-settings">
+        <BottomSheet
+          title="Playlist settings"
+          onClose={closeSettings}
+          footer={
+            <>
+              <button className="btn-danger" onClick={() => { setShowSettings(false); setShowDeleteConfirm(true); }}>
+                <Trash2 size={16} /> Delete
+              </button>
+              <button className="btn-primary" onClick={handleSaveSettings}>Save</button>
+            </>
+          }
+        >
           <label>
             <span>Name</span>
             <input type="text" value={editName} onChange={e => setEditName(e.target.value)} />
@@ -173,7 +187,7 @@ export function PlaylistDetail({ playlistId, onNavigate }: PlaylistDetailProps) 
           )}
 
           <label>
-            <span>Sort Order</span>
+            <span>Sort order</span>
             <select value={editSort} onChange={e => setEditSort(e.target.value)}>
               {!playlist.is_smart && <option value="manual">Manual (drag to reorder)</option>}
               <option value="newest">Newest first</option>
@@ -182,17 +196,11 @@ export function PlaylistDetail({ playlistId, onNavigate }: PlaylistDetailProps) 
               <option value="longest">Longest first</option>
             </select>
           </label>
-          <label className="checkbox-label">
-            <input type="checkbox" checked={editAutoRemove} onChange={e => setEditAutoRemove(e.target.checked)} />
+          <label className="sheet-toggle">
             <span>Auto-hide completed episodes</span>
+            <input type="checkbox" role="switch" checked={editAutoRemove} onChange={e => setEditAutoRemove(e.target.checked)} />
           </label>
-          <div className="playlist-settings-actions">
-            <button className="btn-primary" onClick={handleSaveSettings}>Save</button>
-            <button className="btn-danger" onClick={() => setShowDeleteConfirm(true)}>
-              <Trash2 size={14} /> Delete Playlist
-            </button>
-          </div>
-        </div>
+        </BottomSheet>
       )}
 
       {episodes.length > 0 && (
