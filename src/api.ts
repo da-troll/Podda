@@ -1,9 +1,32 @@
-import type { ChannelFilters, ChannelSettings, Episode, Preferences, ScrollPosition } from './types';
+import type { ChannelFilters, ChannelSettings, ClientDevice, Episode, Preferences, ScrollPosition } from './types';
+
+// HIVE-1180: identify this device and web build to the server (admin Devices view).
+function deviceId(): string {
+  try {
+    let id = localStorage.getItem('podda:device-id');
+    if (!id) {
+      id = crypto.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+      localStorage.setItem('podda:device-id', id);
+    }
+    return id;
+  } catch {
+    return '';
+  }
+}
+
+export function clientHeaders(): Record<string, string> {
+  const id = deviceId();
+  return { 'X-Podda-Web': __APP_VERSION__, ...(id ? { 'X-Podda-Device': id } : {}) };
+}
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(path, {
-    headers: { 'Content-Type': 'application/json' },
     ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...clientHeaders(),
+      ...(options?.headers as Record<string, string> | undefined),
+    },
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({ error: res.statusText }));
@@ -111,6 +134,7 @@ export const api = {
   // Announcements
   getAnnouncements: () =>
     request('/api/announcements'),
+  getDevices: () => request<ClientDevice[]>('/api/admin/devices'),
   getAllAnnouncements: () =>
     request('/api/announcements/all'),
   createAnnouncement: (data: { title: string; body?: string; type?: string; expires_at?: string }) =>
