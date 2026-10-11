@@ -1,4 +1,4 @@
-import type { ChannelFilters, Episode, Preferences } from './types';
+import type { ChannelFilters, ChannelSettings, Episode, Preferences, ScrollPosition } from './types';
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(path, {
@@ -51,6 +51,20 @@ export const api = {
     if (after !== undefined) query.set('after', String(after));
     return request<{ episodes: Episode[]; total: number }>(`/api/episodes/podcast/${podcastId}?${query}`);
   },
+  locateEpisode: (podcastId: number, episodeId: number, filters: ChannelFilters) => {
+    const query = new URLSearchParams({ episode: String(episodeId) });
+    Object.entries(filters).forEach(([key, value]) => { if (value !== undefined) query.set(key, String(value)); });
+    return request<{ index: number; found: boolean }>(`/api/episodes/podcast/${podcastId}/locate?${query}`);
+  },
+  getChannelSettings: (podcastId: number) => request<ChannelSettings>(`/api/channel-settings/${podcastId}`),
+  saveChannelSettings: (podcastId: number, settings: Partial<ChannelSettings>) =>
+    request<ChannelSettings>(`/api/channel-settings/${podcastId}`, { method: 'PUT', body: JSON.stringify(settings) }),
+  resetChannelSettings: (podcastId: number) =>
+    request<ChannelSettings>(`/api/channel-settings/${podcastId}`, { method: 'DELETE' }),
+  getScroll: (scope: 'podcast' | 'playlist', id: number, sort: string) =>
+    request<ScrollPosition | null>(`/api/scroll/${scope}/${id}?sort=${encodeURIComponent(sort)}`),
+  saveScroll: (scope: 'podcast' | 'playlist', id: number, sort: string, position: ScrollPosition) =>
+    request(`/api/scroll/${scope}/${id}`, { method: 'PUT', keepalive: true, body: JSON.stringify({ sort, ...position }) }),
   getRecentEpisodes: (limit = 50) =>
     request(`/api/episodes/recent?limit=${limit}`),
   getEpisode: (id: number) =>
@@ -75,7 +89,7 @@ export const api = {
     request('/api/playlists'),
   createPlaylist: (data: { name: string; is_smart?: boolean; rules?: unknown; sort_order?: string; auto_remove_completed?: boolean }) =>
     request('/api/playlists', { method: 'POST', body: JSON.stringify(data) }),
-  updatePlaylist: (id: number, data: { name?: string; rules?: unknown; sort_order?: string; auto_remove_completed?: boolean }) =>
+  updatePlaylist: (id: number, data: { name?: string; rules?: unknown; sort_order?: string; auto_remove_completed?: boolean; remember_scroll?: boolean | null }) =>
     request(`/api/playlists/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deletePlaylist: (id: number) =>
     request(`/api/playlists/${id}`, { method: 'DELETE' }),

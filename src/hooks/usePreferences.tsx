@@ -10,6 +10,7 @@ import type { Preferences } from '../types';
 export const DEFAULT_PREFERENCES: Preferences = {
   channelSort: 'newest',
   channelHideCompleted: false,
+  rememberScroll: false,
 };
 const Context = createContext<{
   preferences: Preferences;
@@ -26,7 +27,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     api
       .getPreferences()
       .then((value) => {
-        if (live) setPreferences(value);
+        if (live) setPreferences({ ...DEFAULT_PREFERENCES, ...value });
       })
       .catch(() => {
         if (live) setError('Could not load preferences. Using defaults.');
