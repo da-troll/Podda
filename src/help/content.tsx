@@ -52,9 +52,9 @@ export const HELP_SECTIONS: HelpSection[] = [
   {
     title: 'Podcast channels',
     items: [
-      { icon: <EyeOff size={SIZE} />, label: 'Hide completed', description: 'Hide finished episodes while keeping partially listened episodes visible.' },
+      { icon: <EyeOff size={SIZE} />, label: 'Hide completed', description: 'In Filters: hide finished episodes while keeping partially listened episodes visible.' },
       { icon: <span className="help-text-icon">↕</span>, label: 'Episode order', description: 'Sort the entire channel newest, oldest, shortest, or longest first. Playback follows this order.' },
-      { icon: <span className="help-text-icon">≡</span>, label: 'Filters', description: 'Filter episodes by status, release date, and duration. Filters also apply to autoplay.' },
+      { icon: <span className="help-text-icon">≡</span>, label: 'Filters', description: 'Tap Filters to hide completed episodes or filter by status, release date, and duration. The button shows how many are active. Filters also apply to autoplay.' },
       { icon: <Check size={SIZE} />, label: 'Channel defaults', description: 'In Settings → Preferences, choose your default channel order and whether to hide completed episodes. Saved across devices.' },
     ],
   },

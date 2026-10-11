@@ -7,6 +7,14 @@ Format: one `## v<major>.<minor>.<patch> — <YYYY-MM-DD>` header per release,
 followed by bullet points. `publish-update.sh` requires an entry matching
 the version being published — releases without an entry fail.
 
+## v1.2.1 — 2026-10-11
+
+- Channel filters now open in a full-size panel from the Filters button, with large, easy-to-tap options: Hide completed, episode status, release date and length.
+- The Filters button shows how many filters are active, and the episode order dropdown next to it matches its size.
+- Playlist settings open in the same panel instead of pushing the episode list down the page.
+- Choose your default channel order and whether to hide completed episodes in Settings → Preferences. Your choices sync across devices.
+- Oldest first starts at the beginning of the channel, and autoplay follows your selected order and filters.
+
 ## v1.2.0 — 2026-10-10
 
 - Android lock-screen controls now keep the player and listening progress in sync, with correct episode metadata.
