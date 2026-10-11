@@ -210,6 +210,24 @@ async function initDB() {
       );
     `);
 
+    // HIVE-1180: last client + version per user and device.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS client_devices (
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        device_id VARCHAR(64) NOT NULL,
+        platform VARCHAR(20) NOT NULL,
+        app_version VARCHAR(20),
+        web_version VARCHAR(20),
+        user_agent VARCHAR(300),
+        update_check_at TIMESTAMPTZ,
+        update_check_result VARCHAR(20),
+        update_check_detail VARCHAR(200),
+        first_seen TIMESTAMPTZ DEFAULT NOW(),
+        last_seen TIMESTAMPTZ DEFAULT NOW(),
+        PRIMARY KEY (user_id, device_id)
+      );
+    `);
+
     await client.query('COMMIT');
     console.log('[podda] Database schema initialized');
   } catch (err) {

@@ -3,7 +3,7 @@ import { api } from '../api';
 import { useAuthContext } from '../hooks/useAuth';
 import { Upload, LogOut, FileText, Megaphone, Trash2, HelpCircle } from 'lucide-react';
 import { usePreferences } from '../hooks/usePreferences';
-import type { Announcement, Page } from '../types';
+import type { Announcement, ClientDevice, Page } from '../types';
 
 interface SettingsProps {
   onNavigate: (page: Page) => void;
@@ -119,7 +119,60 @@ export function Settings({ onNavigate }: SettingsProps) {
       </section>
 
       {user?.isAdmin && <AdminAnnouncements />}
+      {user?.isAdmin && <AdminDevices />}
     </div>
+  );
+}
+
+const CHECK_LABELS: Record<string, string> = {
+  banner: 'update banner shown',
+  'up-to-date': 'up to date',
+  dismissed: 'update available, banner dismissed',
+  'fetch-error': 'check failed',
+  'http-error': 'check failed (server error)',
+  'bad-json': 'check failed (bad response)',
+};
+
+// Device-local time with its zone, e.g. "11 Oct, 15:48 CEST".
+const stamp = (iso: string) =>
+  new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZoneName: 'short' });
+
+/** HIVE-1180: which app or web version each family member last used, per device. */
+function AdminDevices() {
+  const [devices, setDevices] = useState<ClientDevice[] | null>(null);
+  const [error, setError] = useState('');
+  useEffect(() => {
+    api.getDevices().then(setDevices).catch(err => setError((err as Error).message));
+  }, []);
+  return (
+    <section className="settings-section">
+      <h2>Devices</h2>
+      <div className="settings-card">
+        <p className="hint">Which Podda each person last used. App builds before 1.2.3 cannot report their version or update check.</p>
+        {error && <div className="error-msg">{error}</div>}
+        {devices && !devices.length && <p className="hint">No devices seen yet.</p>}
+        <div className="announcement-list">
+          {devices?.map(d => (
+            <div key={`${d.username}-${d.deviceId}`} className="announcement-list-item">
+              <div className="announcement-list-info">
+                <strong>
+                  {d.displayName || d.username} · {d.platform === 'android-app'
+                    ? `Android app ${d.appVersion ?? '(version unknown, before 1.2.3)'}`
+                    : `Web ${d.webVersion ?? '(old tab)'}`}
+                </strong>
+                {d.userAgent && <span className="announcement-list-body">{/\(([^)]*)\)/.exec(d.userAgent)?.[1] ?? d.userAgent}</span>}
+                <span className="announcement-list-meta">
+                  Last seen {stamp(d.lastSeen)}
+                  {d.platform === 'android-app' && (d.updateCheckAt
+                    ? ` · Update check ${stamp(d.updateCheckAt)}: ${CHECK_LABELS[d.updateCheckResult ?? ''] ?? d.updateCheckResult}${d.updateCheckDetail ? ` (${d.updateCheckDetail})` : ''}`
+                    : ' · Update check: not reported')}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
   );
 }
 

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { clientHeaders } from '../api';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
@@ -32,7 +33,7 @@ export function FeedbackModal({ onClose }: FeedbackModalProps) {
     try {
       const res = await fetch('/api/feedback', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...clientHeaders() },
         body: JSON.stringify({ topic: topic.trim(), details: details.trim() }),
       });
       if (!res.ok) throw new Error('Failed');

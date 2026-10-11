@@ -52,6 +52,8 @@ app.use(session({
 }));
 
 // API routes
+app.use('/api', require('./client-tracker.cjs').trackClient);
+app.use('/api/admin/devices', require('./routes/devices.cjs'));
 app.use('/api/auth', authRouter);
 app.use('/api/preferences', require('./routes/preferences.cjs'));
 app.use('/api/channel-settings', require('./routes/channel-settings.cjs'));

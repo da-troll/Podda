@@ -126,3 +126,19 @@ export type Page =
   | { type: 'playlist'; id: number }
   | { type: 'settings' }
   | { type: 'help' };
+
+/** HIVE-1180: GET /api/admin/devices row. */
+export interface ClientDevice {
+  username: string;
+  displayName: string | null;
+  deviceId: string;
+  platform: 'android-app' | 'web';
+  appVersion: string | null;
+  webVersion: string | null;
+  userAgent: string | null;
+  updateCheckAt: string | null;
+  updateCheckResult: string | null;
+  updateCheckDetail: string | null;
+  firstSeen: string;
+  lastSeen: string;
+}
