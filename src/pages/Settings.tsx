@@ -239,21 +239,23 @@ function ChannelPreferences() {
   const { preferences, loading, error: loadError, save } = usePreferences();
   const [sort, setSort] = useState(preferences.channelSort);
   const [hideCompleted, setHideCompleted] = useState(preferences.channelHideCompleted);
+  const [rememberScroll, setRememberScroll] = useState(preferences.rememberScroll);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
-  useEffect(() => { setSort(preferences.channelSort); setHideCompleted(preferences.channelHideCompleted); }, [preferences]);
+  useEffect(() => { setSort(preferences.channelSort); setHideCompleted(preferences.channelHideCompleted); setRememberScroll(preferences.rememberScroll); }, [preferences]);
   const submit = async () => {
     setSaving(true); setError(''); setSaved(false);
-    try { await save({ channelSort: sort, channelHideCompleted: hideCompleted }); setSaved(true); }
+    try { await save({ channelSort: sort, channelHideCompleted: hideCompleted, rememberScroll }); setSaved(true); }
     catch (err) { setError((err as Error).message); }
     finally { setSaving(false); }
   };
   return <section className="settings-section"><h2>Preferences</h2><div className="settings-card">
-    <p className="hint">Defaults for podcast channels, saved to your account across devices.</p>
+    <p className="hint">Defaults for every channel, saved to your account across devices. A channel can override them in its own settings (the gear on the channel page).</p>
     <label className="settings-row"><span>Default channel order</span><select className="sort-select" value={sort} disabled={loading || saving} onChange={e => { setSort(e.target.value as typeof sort); setSaved(false); }}><option value="newest">Newest first</option><option value="oldest">Oldest first</option></select></label>
     <label className="settings-row checkbox-label"><input type="checkbox" checked={hideCompleted} disabled={loading || saving} onChange={e => { setHideCompleted(e.target.checked); setSaved(false); }} /><span>Hide completed episodes by default</span></label>
-    <p className="hint">Partially listened episodes remain visible. Defaults apply when you open a channel.</p>
+    <label className="settings-row checkbox-label"><input type="checkbox" checked={rememberScroll} disabled={loading || saving} onChange={e => { setRememberScroll(e.target.checked); setSaved(false); }} /><span>Remember scroll position in channels and playlists</span></label>
+    <p className="hint">Partially listened episodes remain visible when completed ones are hidden. With scroll position off, lists open at the top.</p>
     <button className="btn-primary" disabled={loading || saving} onClick={submit}>{saving ? 'Saving…' : 'Save preferences'}</button>
     {saved && <p role="status">Preferences saved.</p>}{(error || loadError) && <p className="error-msg" role="alert">{error || loadError}</p>}
   </div></section>;

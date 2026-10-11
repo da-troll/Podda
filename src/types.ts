@@ -63,6 +63,8 @@ export interface Playlist {
   rules: SmartPlaylistRules | null;
   sort_order: 'manual' | 'newest' | 'oldest' | 'shortest' | 'longest';
   auto_remove_completed: boolean;
+  /** null = follow the account default */
+  remember_scroll?: boolean | null;
   created_at: string;
   updated_at: string;
   episode_count?: number;
@@ -90,7 +92,14 @@ export interface Announcement {
 }
 
 export type ChannelSort = 'newest' | 'oldest' | 'shortest' | 'longest';
-export interface Preferences { channelSort: 'newest' | 'oldest'; channelHideCompleted: boolean; }
+export interface Preferences { channelSort: 'newest' | 'oldest'; channelHideCompleted: boolean; rememberScroll: boolean; }
+/** Per-channel overrides; null follows the account default in Preferences. */
+export interface ChannelSettings {
+  sort: ChannelSort | null;
+  hideCompleted: boolean | null;
+  rememberScroll: boolean | null;
+}
+export interface ScrollPosition { episodeId: number; index: number; offset: number; }
 export interface ChannelFilters {
   sort: ChannelSort;
   hideCompleted: boolean;

@@ -7,6 +7,14 @@ Format: one `## v<major>.<minor>.<patch> — <YYYY-MM-DD>` header per release,
 followed by bullet points. `publish-update.sh` requires an entry matching
 the version being published — releases without an entry fail.
 
+## v1.2.2 — 2026-10-11
+
+- Channel settings: the new gear on a channel page keeps that channel's episode order, whether completed episodes are hidden, and whether it remembers your scroll position. Each can follow your default or be set for that channel.
+- Remember scroll position: reopen a channel or playlist where you left off, on any of your devices. Off by default; turn it on for everything in Settings → Preferences, or per channel and playlist.
+- Episodes now load as you scroll, so the Load more button is gone. Tap Show all next to the episode count to load a whole channel at once.
+- Filters (status, release date, length) apply until you leave the channel; Hide completed moved to channel settings.
+- Long episode lists scroll more smoothly while something is playing.
+
 ## v1.2.1 — 2026-10-11
 
 - Channel filters now open in a full-size panel from the Filters button, with large, easy-to-tap options: Hide completed, episode status, release date and length.

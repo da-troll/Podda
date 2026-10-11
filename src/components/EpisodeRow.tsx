@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, memo, type RefObject } from 'react';
 import { Play, Pause, Check, MoreVertical, CheckCircle, RotateCcw, ListPlus, X as XIcon, Loader2 } from 'lucide-react';
 import { usePlayerContext } from '../hooks/usePlayer';
 import { AddToPlaylistModal } from './AddToPlaylistModal';
@@ -43,12 +43,24 @@ interface EpisodeRowProps {
   onPlay?: () => void;
 }
 
-export function EpisodeRow({ episode, podcast, showPodcast, showTimeRemaining, onMarkPlayed, onMarkUnplayed, onRemoveFromPlaylist, hidePlaylistAction, hideActions, queue, queueSource, onPlay }: EpisodeRowProps) {
+type PlayerActions = Pick<ReturnType<typeof usePlayerContext>, 'play' | 'togglePlay' | 'setQueue'>;
+
+/** Reads the player context (which changes on every playback tick) and passes
+ *  the row only what it shows, so a long list does not re-render each tick. */
+export function EpisodeRow(props: EpisodeRowProps) {
   const player = usePlayerContext();
+  const actions = useRef<PlayerActions>(player);
+  actions.current = player;
+  const isPlaying = player.episode?.id === props.episode.id;
+  const rowState = !isPlaying ? 'idle' : player.loading ? 'loading' : player.playing ? 'playing' : 'paused';
+  return <EpisodeRowView {...props} isPlaying={isPlaying} rowState={rowState} player={actions} />;
+}
+
+const EpisodeRowView = memo(function EpisodeRowView({ episode, podcast, showPodcast, showTimeRemaining, onMarkPlayed, onMarkUnplayed, onRemoveFromPlaylist, hidePlaylistAction, hideActions, queue, queueSource, onPlay, isPlaying, rowState, player: playerRef }: EpisodeRowProps & { isPlaying: boolean; rowState: 'idle' | 'loading' | 'playing' | 'paused'; player: RefObject<PlayerActions> }) {
+  const player = playerRef.current!;
   const [menuOpen, setMenuOpen] = useState(false);
   const [showAddToPlaylist, setShowAddToPlaylist] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-  const isPlaying = player.episode?.id === episode.id;
   const completed = episode.listen_completed;
   const progress = episode.listen_position && episode.duration
     ? Math.floor((episode.listen_position / episode.duration) * 100)
@@ -74,7 +86,7 @@ export function EpisodeRow({ episode, podcast, showPodcast, showTimeRemaining, o
   const hasAnyAction = onMarkPlayed || onMarkUnplayed || onRemoveFromPlaylist || !hidePlaylistAction;
 
   return (
-    <div className={`episode-row ${completed ? 'completed' : ''}`}>
+    <div className={`episode-row ${completed ? 'completed' : ''}`} data-episode-id={episode.id}>
       <button
         className="episode-play-btn"
         onClick={() => {
@@ -87,7 +99,7 @@ export function EpisodeRow({ episode, podcast, showPodcast, showTimeRemaining, o
           }
         }}
       >
-        {isPlaying && player.loading ? <Loader2 size={18} className="spin" /> : isPlaying && player.playing ? <Pause size={18} /> : <Play size={18} />}
+        {rowState === 'loading' ? <Loader2 size={18} className="spin" /> : rowState === 'playing' ? <Pause size={18} /> : <Play size={18} />}
       </button>
 
       <div className="episode-info">
@@ -151,4 +163,4 @@ export function EpisodeRow({ episode, podcast, showPodcast, showTimeRemaining, o
       )}
     </div>
   );
-}
+});

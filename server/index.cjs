@@ -54,6 +54,8 @@ app.use(session({
 // API routes
 app.use('/api/auth', authRouter);
 app.use('/api/preferences', require('./routes/preferences.cjs'));
+app.use('/api/channel-settings', require('./routes/channel-settings.cjs'));
+app.use('/api/scroll', require('./routes/scroll.cjs'));
 app.use('/api/podcasts', podcastRouter);
 app.use('/api/episodes', episodeRouter);
 app.use('/api/progress', playerRouter);

@@ -35,7 +35,7 @@ for (const [label, viewport, mobile] of [['390', { width: 412, height: 915 }, tr
   await p.goto(ORIGIN + '/');
   const r = await p.evaluate(async (pw) => (await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: 'qa-hive1173', password: pw }) })).status, pw);
   check(`${label} login`, r === 200, String(r));
-  await p.evaluate(() => { localStorage.setItem('podda:last-seen-version', '1.2.1'); for (const k of ['podda:swipe-hint-v1', 'podda:hint-sidebar-swipe-v1', 'podda:hint-mini-expand-v1']) localStorage.setItem(k, '1'); });
+  await p.evaluate(() => { localStorage.setItem('podda:last-seen-version', '1.2.2'); localStorage.setItem('podda:hint-channel-settings-v1', '1'); for (const k of ['podda:swipe-hint-v1', 'podda:hint-sidebar-swipe-v1', 'podda:hint-mini-expand-v1']) localStorage.setItem(k, '1'); });
   await p.goto(ORIGIN + '/#podcast/3'); await p.reload();
   await p.waitForSelector('[data-hint="channel-filters"]');
   const hint = await p.waitForSelector('.hint-spotlight', { timeout: 5000 }).catch(() => null);
@@ -64,21 +64,19 @@ for (const [label, viewport, mobile] of [['390', { width: 412, height: 915 }, tr
   const listTopOpen = await p.locator('.episode-list').evaluate(e => e.getBoundingClientRect().top);
   check(`${label} list not pushed by sheet`, Math.abs(listTopOpen - listTopBefore) < 1, `${listTopBefore} -> ${listTopOpen}`);
   check(`${label} sheet is dialog`, (await p.locator('.sheet[role=dialog][aria-modal=true]').count()) === 1);
-  const sw = p.locator('.sheet input[role=switch]');
-  check(`${label} hide completed in sheet`, (await p.locator('.sheet-toggle >> text=Hide completed').count()) === 1);
+  // 1.2.2 (HIVE-1178): Hide completed moved to channel settings (the gear).
+  check(`${label} Filters sheet has no Hide completed control`, !(await p.locator('.sheet label > span').allInnerTexts()).some(t => /hide completed/i.test(t)));
   const link = p.locator('.sheet a.text-link');
   const linkInfo = await link.evaluate(a => ({ text: a.textContent, color: getComputedStyle(a).color, accent: getComputedStyle(document.documentElement).getPropertyValue('--accent').trim(), tag: a.tagName }));
   check(`${label} Preferences link`, linkInfo.text === 'Preferences' && linkInfo.color === 'rgb(99, 102, 241)', JSON.stringify(linkInfo));
   const selFont = await p.locator('.sheet select').first().evaluate(e => [getComputedStyle(e).fontSize, e.getBoundingClientRect().height]);
   check(`${label} sheet selects large`, parseFloat(selFont[0]) >= 16 && selFont[1] >= 52, JSON.stringify(selFont));
   await p.screenshot({ path: `${OUT}/${label}-3-sheet.png` });
-  const was = await sw.isChecked();
-  await p.locator('.sheet-toggle').click();
-  check(`${label} switch toggles`, (await sw.isChecked()) !== was);
+  await p.locator('.sheet select').first().selectOption('unplayed');
   await p.click('.sheet-footer >> text=Done');
   await p.waitForSelector('.sheet', { state: 'detached' });
   const badge = await p.locator('.filters-btn-count').textContent().catch(() => null);
-  check(`${label} badge after hide completed`, badge === (was ? null : '1'), String(badge));
+  check(`${label} badge counts an active filter`, badge === '1', String(badge));
   await p.waitForTimeout(800);
   await p.screenshot({ path: `${OUT}/${label}-4-badge.png` });
   // Escape closes, Android back event closes
@@ -102,7 +100,7 @@ for (const [label, viewport, mobile] of [['390', { width: 412, height: 915 }, tr
   await p.evaluate(() => localStorage.removeItem('podda:last-seen-version')); await p.reload();
   await p.waitForSelector('.whatsnew-sheet'); await settle(p);
   const wn = await p.locator('.whatsnew-sheet').innerText();
-  check(`${label} whats-new 1.2.1, no lock-screen`, wn.includes('v1.2.1') && !/lock.?screen/i.test(wn));
+  check(`${label} whats-new 1.2.2, no lock-screen`, wn.includes('v1.2.2') && !/lock.?screen/i.test(wn));
   await p.screenshot({ path: `${OUT}/${label}-6-whatsnew.png` });
   await c.close();
 }

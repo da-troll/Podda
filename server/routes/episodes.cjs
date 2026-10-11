@@ -23,6 +23,33 @@ router.get('/podcast/:podcastId', requireAuth, async (req, res) => {
   }
 });
 
+// Index of an episode in the filtered channel view, for scroll restore. When the
+// episode is filtered out (or gone), this is where the next visible one sits.
+router.get('/podcast/:podcastId/locate', requireAuth, async (req, res) => {
+  let query, episodeId;
+  try {
+    const podcastId = Number(req.params.podcastId);
+    episodeId = Number(req.query.episode);
+    if (!Number.isSafeInteger(podcastId) || podcastId <= 0) throw new Error('Invalid podcast');
+    if (!Number.isSafeInteger(episodeId) || episodeId <= 0) throw new Error('Invalid episode');
+    query = require('../channel-query.cjs').channelQuery(req.query, req.session.userId, podcastId);
+  } catch (err) { return res.status(400).json({ error: err.message }); }
+  try {
+    const { cte, where, params } = query;
+    const anchor = `$${params.length + 1}`;
+    const result = await db.query(
+      `${cte} SELECT COUNT(*) FILTER (WHERE channel_rank < (SELECT channel_rank FROM ranked WHERE id = ${anchor})) AS index,
+         bool_or(id = ${anchor}) AS found
+       FROM ranked WHERE ${where}`,
+      [...params, episodeId],
+    );
+    res.json({ index: Number(result.rows[0].index), found: !!result.rows[0].found });
+  } catch (err) {
+    console.error('[episodes] Locate error:', err.message);
+    res.status(500).json({ error: 'Failed to locate episode' });
+  }
+});
+
 // GET /api/episodes/recent — recent episodes across all subscriptions
 router.get('/recent', requireAuth, async (req, res) => {
   const limit = Math.min(parseInt(req.query.limit) || 50, 200);

@@ -183,6 +183,33 @@ async function initDB() {
       );
     `);
 
+    // HIVE-1178: per-channel settings (NULL = follow the account default),
+    // remember-scroll defaults and saved scroll anchors.
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS remember_scroll BOOLEAN NOT NULL DEFAULT FALSE`);
+    await client.query(`ALTER TABLE playlists ADD COLUMN IF NOT EXISTS remember_scroll BOOLEAN`);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS channel_settings (
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        podcast_id INTEGER NOT NULL REFERENCES podcasts(id) ON DELETE CASCADE,
+        sort VARCHAR(10),
+        hide_completed BOOLEAN,
+        remember_scroll BOOLEAN,
+        updated_at TIMESTAMPTZ DEFAULT NOW(),
+        PRIMARY KEY (user_id, podcast_id)
+      );
+      CREATE TABLE IF NOT EXISTS scroll_positions (
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        scope VARCHAR(10) NOT NULL,
+        target_id INTEGER NOT NULL,
+        sort VARCHAR(10) NOT NULL,
+        episode_id INTEGER NOT NULL,
+        anchor_index INTEGER NOT NULL DEFAULT 0,
+        offset_px INTEGER NOT NULL DEFAULT 0,
+        updated_at TIMESTAMPTZ DEFAULT NOW(),
+        PRIMARY KEY (user_id, scope, target_id, sort)
+      );
+    `);
+
     await client.query('COMMIT');
     console.log('[podda] Database schema initialized');
   } catch (err) {

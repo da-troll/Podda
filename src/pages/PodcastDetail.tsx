@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef } from 'react';
 import DOMPurify from 'dompurify';
 import { api } from '../api';
 import { EpisodeRow } from '../components/EpisodeRow';
@@ -10,7 +10,9 @@ import {
   Plus,
   Loader,
   SlidersHorizontal,
+  Settings,
 } from 'lucide-react';
+import { useScrollMemory, scrollToRow } from '../hooks/useScrollMemory';
 import { BottomSheet } from '../components/BottomSheet';
 import { useListRefresh } from '../hooks/useListRefresh';
 import { usePreferences } from '../hooks/usePreferences';
@@ -21,9 +23,16 @@ import type {
   Page,
   QueueSource,
   ChannelFilters,
+  ChannelSettings,
 } from '../types';
 
 const PAGE_SIZE = 50;
+const SORT_LABELS: Record<ChannelFilters['sort'], string> = {
+  newest: 'Newest first',
+  oldest: 'Oldest first',
+  shortest: 'Shortest first',
+  longest: 'Longest first',
+};
 
 interface PodcastDetailProps {
   podcastId: number;
@@ -47,21 +56,44 @@ export function PodcastDetail({
   const { preferences, loading: preferencesLoading } = usePreferences();
   const [filters, setFilters] = useState<ChannelFilters | null>(null);
   const [showFilters, setShowFilters] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [channelSettings, setChannelSettings] = useState<ChannelSettings | null>(null);
+  const [loadingAll, setLoadingAll] = useState(false);
+  // Scroll restore: done once per visit, before the scroll memory may save.
+  const [restoreDone, setRestoreDone] = useState(false);
+  const [pendingScroll, setPendingScroll] = useState<{ index: number; offset: number } | null>(null);
+  const sentinel = useRef<HTMLDivElement>(null);
   const [error, setError] = useState('');
   const requestVersion = useRef(0);
   const loadedCount = useRef(PAGE_SIZE);
   const defaults = useCallback(
     (): ChannelFilters => ({
-      sort: preferences.channelSort,
-      hideCompleted: preferences.channelHideCompleted,
+      sort: channelSettings?.sort ?? preferences.channelSort,
+      hideCompleted:
+        channelSettings?.hideCompleted ?? preferences.channelHideCompleted,
       status: 'any',
       released_after: 'any',
     }),
-    [preferences],
+    [preferences, channelSettings],
   );
+  const rememberScroll =
+    channelSettings?.rememberScroll ?? preferences.rememberScroll;
   useEffect(() => {
-    if (!preferencesLoading) setFilters((current) => current ?? defaults());
-  }, [preferencesLoading, defaults]);
+    let live = true;
+    api
+      .getChannelSettings(podcastId)
+      .catch(() => ({ sort: null, hideCompleted: null, rememberScroll: null }))
+      .then((value) => {
+        if (live) setChannelSettings(value);
+      });
+    return () => {
+      live = false;
+    };
+  }, [podcastId]);
+  useEffect(() => {
+    if (!preferencesLoading && channelSettings)
+      setFilters((current) => current ?? defaults());
+  }, [preferencesLoading, channelSettings, defaults]);
 
   const fetchEpisodes = useCallback(
     async (append = false) => {
@@ -96,8 +128,10 @@ export function PodcastDetail({
         setTotal(total);
         setError('');
       } catch (err) {
-        if (version === requestVersion.current)
+        if (version === requestVersion.current) {
           setError((err as Error).message);
+          setRestoreDone(true); // a failed load must not hold the scroll memory off
+        }
       } finally {
         if (version === requestVersion.current) {
           setLoading(false);
@@ -147,13 +181,105 @@ export function PodcastDetail({
       window.removeEventListener('podda:progressSaved', reloadEpisodes);
   }, [reloadEpisodes]);
   useEffect(() => {
-    if (!loading && podcast && filters) triggerHint('channel-open');
-  }, [loading, podcast, filters]);
+    if (!loading && podcast && filters && restoreDone)
+      triggerHint('channel-open');
+  }, [loading, podcast, filters, restoreDone]);
+
+  // Restore the saved scroll anchor once, after the first page loads. The
+  // server says where the saved episode (or the next visible one) now sits,
+  // so we load pages up to it before scrolling.
+  useEffect(() => {
+    if (restoreDone || loading || !filters || !channelSettings) return;
+    if (!rememberScroll) {
+      setRestoreDone(true);
+      return;
+    }
+    let live = true;
+    (async () => {
+      const saved = await api
+        .getScroll('podcast', podcastId, filters.sort)
+        .catch(() => null);
+      const located =
+        saved &&
+        (await api
+          .locateEpisode(podcastId, saved.episodeId, filters)
+          .catch(() => null));
+      if (!live) return;
+      if (!saved || !located || total === 0) return setRestoreDone(true);
+      const index = Math.min(located.index, total - 1);
+      if (index >= loadedCount.current) {
+        loadedCount.current = Math.min(index + PAGE_SIZE, total);
+        await fetchEpisodes();
+        if (!live) return;
+      }
+      setPendingScroll({ index, offset: located.found ? saved.offset : 0 });
+    })();
+    return () => {
+      live = false;
+    };
+  }, [restoreDone, loading, filters, channelSettings, rememberScroll, podcastId, total, fetchEpisodes]);
+  useLayoutEffect(() => {
+    if (!pendingScroll || episodes.length <= pendingScroll.index) return;
+    scrollToRow(pendingScroll.index, pendingScroll.offset);
+    setPendingScroll(null);
+    setRestoreDone(true);
+  }, [pendingScroll, episodes]);
+  useScrollMemory(
+    rememberScroll && filters
+      ? { scope: 'podcast', id: podcastId, sort: filters.sort }
+      : null,
+    restoreDone,
+  );
+
+  // Load the next page as the end of the list nears; no Load more button.
+  const hasMore = episodes.length < total;
+  useEffect(() => {
+    const el = sentinel.current;
+    if (!el || !hasMore || loading || loadingMore) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) void fetchEpisodes(true);
+      },
+      { root: el.closest('.main-content'), rootMargin: '0px 0px 800px 0px' },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [hasMore, loading, loadingMore, fetchEpisodes]);
+  const showAll = async () => {
+    setLoadingAll(true);
+    loadedCount.current = total;
+    await fetchEpisodes();
+    setLoadingAll(false);
+  };
+
+  // Channel settings save immediately; null follows the account default.
+  const saveSetting = async (partial: Partial<ChannelSettings>) => {
+    try {
+      setChannelSettings(await api.saveChannelSettings(podcastId, partial));
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  };
+  const changeSort = (sort: ChannelFilters['sort']) => {
+    updateFilters({ sort });
+    void saveSetting({ sort: sort === preferences.channelSort ? null : sort });
+  };
+  const resetChannel = async () => {
+    try {
+      setChannelSettings(await api.resetChannelSettings(podcastId));
+      updateFilters({
+        sort: preferences.channelSort,
+        hideCompleted: preferences.channelHideCompleted,
+      });
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  };
+  const closeSettings = useCallback(() => setShowSettings(false), []);
 
   const closeFilters = useCallback(() => setShowFilters(false), []);
   const activeFilterCount = filters
     ? [
-        filters.hideCompleted,
         filters.status !== 'any',
         filters.released_after !== 'any',
         filters.duration_min !== undefined,
@@ -207,8 +333,6 @@ export function PodcastDetail({
     }),
     [podcastId, filters],
   );
-
-  const hasMore = episodes.length < total;
 
   if (preferencesLoading || (!podcast && loading) || !filters)
     return <div className="page-loading">Loading...</div>;
@@ -276,9 +400,20 @@ export function PodcastDetail({
 
       <div className="episode-list-header">
         <span>
-          {episodes.length < total
-            ? `${episodes.length} of ${total} episodes`
-            : `${total} episodes`}
+          {episodes.length < total ? (
+            <>
+              {episodes.length} of {total} episodes ·{' '}
+              <button
+                className="text-link-muted"
+                onClick={() => void showAll()}
+                disabled={loadingAll}
+              >
+                {loadingAll ? 'Loading all…' : 'Show all'}
+              </button>
+            </>
+          ) : (
+            `${total} episodes`
+          )}
         </span>
         <div className="episode-list-header-actions">
           <select
@@ -286,7 +421,7 @@ export function PodcastDetail({
             aria-label="Episode order"
             value={filters.sort}
             onChange={(e) =>
-              updateFilters({ sort: e.target.value as ChannelFilters['sort'] })
+              changeSort(e.target.value as ChannelFilters['sort'])
             }
           >
             <option value="newest">Newest first</option>
@@ -304,6 +439,16 @@ export function PodcastDetail({
             {activeFilterCount > 0 && (
               <span className="filters-btn-count">{activeFilterCount}</span>
             )}
+          </button>
+          <button
+            className="btn-icon channel-settings-btn"
+            data-hint="channel-settings"
+            aria-label="Channel settings"
+            aria-haspopup="dialog"
+            title="Channel settings"
+            onClick={() => setShowSettings(true)}
+          >
+            <Settings size={20} />
           </button>
           {podcast.is_subscribed && (
             <button
@@ -344,23 +489,6 @@ export function PodcastDetail({
             </>
           }
         >
-          <label className="sheet-toggle">
-            <span>Hide completed</span>
-            <input
-              type="checkbox"
-              role="switch"
-              checked={filters.hideCompleted}
-              onChange={(e) =>
-                updateFilters({
-                  hideCompleted: e.target.checked,
-                  status:
-                    e.target.checked && filters.status === 'played'
-                      ? 'any'
-                      : filters.status,
-                })
-              }
-            />
-          </label>
           <label>
             <span>Episode status</span>
             <select
@@ -368,8 +496,9 @@ export function PodcastDetail({
               onChange={(e) =>
                 updateFilters({
                   status: e.target.value as ChannelFilters['status'],
+                  // Showing played episodes overrides Hide completed for this view.
                   hideCompleted:
-                    e.target.value === 'played' ? false : filters.hideCompleted,
+                    e.target.value === 'played' ? false : defaults().hideCompleted,
                 })
               }
             >
@@ -438,8 +567,82 @@ export function PodcastDetail({
             </label>
           ))}
           <p className="hint">
-            These filters apply to this channel view. Set your defaults in
-            Settings →{' '}
+            Filters apply until you leave this channel. Order and Hide
+            completed are channel settings (the gear); set defaults for all
+            channels in Settings →{' '}
+            <a
+              href="#settings"
+              className="text-link"
+              onClick={(e) => {
+                e.preventDefault();
+                onNavigate({ type: 'settings' });
+              }}
+            >
+              Preferences
+            </a>
+            .
+          </p>
+        </BottomSheet>
+      )}
+      {showSettings && (
+        <BottomSheet
+          title="Channel settings"
+          onClose={closeSettings}
+          footer={
+            <>
+              <button className="btn-secondary" onClick={() => void resetChannel()}>
+                Reset to defaults
+              </button>
+              <button className="btn-primary" onClick={closeSettings}>
+                Done
+              </button>
+            </>
+          }
+        >
+          <label>
+            <span>Episode order</span>
+            <select
+              value={channelSettings?.sort ?? ''}
+              onChange={(e) => {
+                const sort = (e.target.value || null) as ChannelSettings['sort'];
+                updateFilters({ sort: sort ?? preferences.channelSort });
+                void saveSetting({ sort });
+              }}
+            >
+              <option value="">
+                Default ({SORT_LABELS[preferences.channelSort]})
+              </option>
+              {(Object.keys(SORT_LABELS) as ChannelFilters['sort'][]).map((key) => (
+                <option key={key} value={key}>
+                  {SORT_LABELS[key]}
+                </option>
+              ))}
+            </select>
+          </label>
+          {([
+            ['hideCompleted', 'Hide completed episodes', preferences.channelHideCompleted],
+            ['rememberScroll', 'Remember scroll position', preferences.rememberScroll],
+          ] as const).map(([key, label, fallback]) => (
+            <label key={key}>
+              <span>{label}</span>
+              <select
+                value={channelSettings?.[key] == null ? '' : String(channelSettings[key])}
+                onChange={(e) => {
+                  const value = e.target.value === '' ? null : e.target.value === 'true';
+                  if (key === 'hideCompleted')
+                    updateFilters({ hideCompleted: value ?? fallback, status: 'any' });
+                  void saveSetting({ [key]: value });
+                }}
+              >
+                <option value="">Default ({fallback ? 'On' : 'Off'})</option>
+                <option value="true">On</option>
+                <option value="false">Off</option>
+              </select>
+            </label>
+          ))}
+          <p className="hint">
+            Saved for this channel on all your devices. Defaults for every
+            channel are in Settings →{' '}
             <a
               href="#settings"
               className="text-link"
@@ -464,14 +667,7 @@ export function PodcastDetail({
           No episodes match these filters.{' '}
           <button
             className="btn-secondary"
-            onClick={() =>
-              setFilters({
-                sort: preferences.channelSort,
-                hideCompleted: false,
-                status: 'any',
-                released_after: 'any',
-              })
-            }
+            onClick={() => setFilters({ ...defaults(), hideCompleted: false })}
           >
             Show all episodes
           </button>
@@ -500,16 +696,8 @@ export function PodcastDetail({
       </div>
 
       {hasMore && (
-        <div className="load-more-container">
-          <button
-            className="btn-secondary"
-            onClick={() => void fetchEpisodes(true)}
-            disabled={loadingMore || loading}
-          >
-            {loadingMore
-              ? 'Loading…'
-              : `Load more (${total - episodes.length} remaining)`}
-          </button>
+        <div ref={sentinel} className="load-more-container" role="status">
+          {loadingMore ? 'Loading more episodes…' : ''}
         </div>
       )}
 

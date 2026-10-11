@@ -176,6 +176,10 @@ router.post('/', requireAuth, async (req, res) => {
 router.put('/:id', requireAuth, async (req, res) => {
   const id = parseInt(req.params.id);
   const { name, rules, sort_order, auto_remove_completed } = req.body;
+  // remember_scroll is tri-state: true/false, or null to follow the account default.
+  const hasRememberScroll = Object.hasOwn(req.body, 'remember_scroll');
+  if (hasRememberScroll && req.body.remember_scroll !== null && typeof req.body.remember_scroll !== 'boolean')
+    return res.status(400).json({ error: 'Invalid remember_scroll' });
 
   try {
     const result = await db.query(`
@@ -184,10 +188,11 @@ router.put('/:id', requireAuth, async (req, res) => {
           rules = COALESCE($4, rules),
           sort_order = COALESCE($5, sort_order),
           auto_remove_completed = COALESCE($6, auto_remove_completed),
+          remember_scroll = CASE WHEN $7 THEN $8::boolean ELSE remember_scroll END,
           updated_at = NOW()
       WHERE id = $1 AND user_id = $2
       RETURNING *
-    `, [id, req.session.userId, name?.trim() || null, rules ? JSON.stringify(rules) : null, sort_order || null, auto_remove_completed]);
+    `, [id, req.session.userId, name?.trim() || null, rules ? JSON.stringify(rules) : null, sort_order || null, auto_remove_completed, hasRememberScroll, hasRememberScroll ? req.body.remember_scroll : null]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Playlist not found' });

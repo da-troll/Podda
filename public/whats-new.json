@@ -1,11 +1,11 @@
 {
-  "version": "1.2.1",
+  "version": "1.2.2",
   "date": "2026-10-11",
   "bullets": [
-    "Channel filters now open in a full-size panel from the Filters button, with large, easy-to-tap options: Hide completed, episode status, release date and length.",
-    "The Filters button shows how many filters are active, and the episode order dropdown next to it matches its size.",
-    "Playlist settings open in the same panel instead of pushing the episode list down the page.",
-    "Choose your default channel order and whether to hide completed episodes in Settings → Preferences. Your choices sync across devices.",
-    "Oldest first starts at the beginning of the channel, and autoplay follows your selected order and filters."
+    "Channel settings: the new gear on a channel page keeps that channel's episode order, whether completed episodes are hidden, and whether it remembers your scroll position. Each can follow your default or be set for that channel.",
+    "Remember scroll position: reopen a channel or playlist where you left off, on any of your devices. Off by default; turn it on for everything in Settings → Preferences, or per channel and playlist.",
+    "Episodes now load as you scroll, so the Load more button is gone. Tap Show all next to the episode count to load a whole channel at once.",
+    "Filters (status, release date, length) apply until you leave the channel; Hide completed moved to channel settings.",
+    "Long episode lists scroll more smoothly while something is playing."
   ]
 }

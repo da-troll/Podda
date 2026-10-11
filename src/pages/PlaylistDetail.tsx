@@ -6,6 +6,8 @@ import { ArrowLeft, Trash2, GripVertical, SkipForward, ListEnd, Settings2, Zap }
 import { ConfirmModal } from '../components/ConfirmModal';
 import { BottomSheet } from '../components/BottomSheet';
 import { useListRefresh } from '../hooks/useListRefresh';
+import { usePreferences } from '../hooks/usePreferences';
+import { useScrollMemory, scrollToRow } from '../hooks/useScrollMemory';
 import type { Playlist, Episode, SmartPlaylistRules, Page, QueueSource } from '../types';
 
 interface PlaylistDetailProps {
@@ -28,6 +30,9 @@ export function PlaylistDetail({ playlistId, onNavigate }: PlaylistDetailProps) 
   const [editName, setEditName] = useState('');
   const [editSort, setEditSort] = useState('manual');
   const [editAutoRemove, setEditAutoRemove] = useState(true);
+  const [editRememberScroll, setEditRememberScroll] = useState<boolean | null>(null);
+  const { preferences, loading: preferencesLoading } = usePreferences();
+  const [restoreDone, setRestoreDone] = useState(false);
   const [editRules, setEditRules] = useState<SmartPlaylistRules>({});
   const [showSettings, setShowSettings] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -48,6 +53,7 @@ export function PlaylistDetail({ playlistId, onNavigate }: PlaylistDetailProps) 
       setEditName(data.playlist.name);
       setEditSort(data.playlist.sort_order);
       setEditAutoRemove(data.playlist.auto_remove_completed);
+      setEditRememberScroll(data.playlist.remember_scroll ?? null);
       if (data.playlist.rules) setEditRules(data.playlist.rules);
     } catch (err) {
       console.error('Failed to load playlist:', err);
@@ -66,6 +72,27 @@ export function PlaylistDetail({ playlistId, onNavigate }: PlaylistDetailProps) 
     } catch {}
   }, [playlistId]);
   useListRefresh(reloadEpisodes);
+
+  // Playlists load in full, so the saved anchor is found in the list itself;
+  // if it is gone, the saved index is the nearest place.
+  const rememberScroll = playlist ? (playlist.remember_scroll ?? preferences.rememberScroll) : false;
+  const scrollSort = playlist?.sort_order ?? 'manual';
+  useEffect(() => {
+    if (restoreDone || loading || !playlist || preferencesLoading) return;
+    if (!rememberScroll || !episodes.length) { setRestoreDone(true); return; }
+    let live = true;
+    api.getScroll('playlist', playlistId, scrollSort).catch(() => null).then(saved => {
+      if (!live) return;
+      if (saved) {
+        const found = episodes.findIndex(ep => ep.id === saved.episodeId);
+        const index = found >= 0 ? found : Math.min(saved.index, episodes.length - 1);
+        scrollToRow(index, found >= 0 ? saved.offset : 0);
+      }
+      setRestoreDone(true);
+    });
+    return () => { live = false; };
+  }, [restoreDone, loading, playlist, preferencesLoading, rememberScroll, episodes, playlistId, scrollSort]);
+  useScrollMemory(rememberScroll ? { scope: 'playlist', id: playlistId, sort: scrollSort } : null, restoreDone);
 
   const handleRemove = async (episodeId: number) => {
     await api.removeFromPlaylist(playlistId, episodeId);
@@ -91,6 +118,7 @@ export function PlaylistDetail({ playlistId, onNavigate }: PlaylistDetailProps) 
         name: editName,
         sort_order: editSort,
         auto_remove_completed: editAutoRemove,
+        remember_scroll: editRememberScroll,
       };
       if (playlist?.is_smart) {
         updateData.rules = editRules;
@@ -194,6 +222,17 @@ export function PlaylistDetail({ playlistId, onNavigate }: PlaylistDetailProps) 
               <option value="oldest">Oldest first</option>
               <option value="shortest">Shortest first</option>
               <option value="longest">Longest first</option>
+            </select>
+          </label>
+          <label>
+            <span>Remember scroll position</span>
+            <select
+              value={editRememberScroll == null ? '' : String(editRememberScroll)}
+              onChange={e => setEditRememberScroll(e.target.value === '' ? null : e.target.value === 'true')}
+            >
+              <option value="">Default ({preferences.rememberScroll ? 'On' : 'Off'})</option>
+              <option value="true">On</option>
+              <option value="false">Off</option>
             </select>
           </label>
           <label className="sheet-toggle">
