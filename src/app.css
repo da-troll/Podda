@@ -850,6 +850,9 @@ img { display: block; max-width: 100%; }
 .playlist-settings-actions { display: flex; gap: 8px; margin-top: 8px; }
 .checkbox-label { display: flex !important; flex-direction: row !important; align-items: center; gap: 8px; }
 .checkbox-label input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--accent); }
+/* settings-row spreads its children; a checkbox row must not (box left, label wrapping beside it). */
+.settings-row.checkbox-label { justify-content: flex-start; flex-wrap: nowrap; }
+.checkbox-label input[type="checkbox"] { flex-shrink: 0; }
 
 /* ── Modal ──────────────────────────────────────────────── */
 .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 200; display: flex; align-items: flex-start; justify-content: center; padding: 20px; padding-top: max(20px, env(safe-area-inset-top, 0px)); overflow-y: auto; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
@@ -1353,3 +1356,21 @@ img { display: block; max-width: 100%; }
   border-top: 1px solid var(--glass-border);
 }
 .sheet-footer > button { flex: 1; justify-content: center; min-height: 48px; font-size: 1rem; }
+
+/* ── Phone type scale + touch targets (HIVE-1176) ───────────
+   Most sizes are rem, so raising the root lifts the whole app; the rest
+   floors the few sizes that stay under 12px and brings controls to 44px. */
+@media (max-width: 600px) {
+  html, body { font-size: 17px; }
+  .podcast-card-count, .smart-badge, .upnext-strip-label { font-size: 0.75rem; }
+  .podcast-card-title { font-size: 0.9rem; }
+
+  .btn-icon, .cl-action-btn, .episode-play-btn { width: 44px; height: 44px; }
+  .btn-sm, .btn-primary, .btn-secondary, .btn-danger, .btn-secondary-danger,
+  .tab-bar button, .brand-logo-btn, .text-link-muted, .section-link { min-height: 44px; }
+  .announcement-dismiss, .whatsnew-close { min-width: 44px; min-height: 44px; display: grid; place-items: center; }
+  .sort-select, .filters-btn { min-height: 44px; height: 44px; }
+  .search-input-wrapper input, .settings-card input[type="text"], .settings-card input[type="password"] { min-height: 44px; }
+  .settings-row.checkbox-label { min-height: 44px; gap: 12px; }
+  .checkbox-label input[type="checkbox"] { width: 22px; height: 22px; }
+}
