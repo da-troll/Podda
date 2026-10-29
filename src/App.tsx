@@ -7,7 +7,7 @@ import { WhatsNewSheet } from './components/WhatsNewSheet';
 import { AnnouncementBanner } from './components/AnnouncementBanner';
 import { Sidebar } from './components/Sidebar';
 import { Player } from './components/player/Player';
-import { Login } from './pages/Login';
+import { Login, NotLinked } from './pages/Login';
 import { Library } from './pages/Library';
 import { PodcastDetail } from './pages/PodcastDetail';
 import { Discover } from './pages/Discover';
@@ -181,6 +181,9 @@ export default function App() {
 
   if (auth.loading) {
     return <div className="app-loading">Loading...</div>;
+  }
+  if (auth.notLinked) {
+    return <AuthContext.Provider value={auth}><NotLinked /></AuthContext.Provider>;
   }
 
   return (

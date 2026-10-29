@@ -8,7 +8,7 @@ const path = require('path');
 const bcrypt = require('bcrypt');
 
 const db = require('./db.cjs');
-const { router: authRouter, requireAuth } = require('./auth.cjs');
+const { router: authRouter, requireAuth, createIdentityResolver, peerAllowed } = require('./auth.cjs');
 const { router: podcastRouter } = require('./routes/podcasts.cjs');
 const episodeRouter = require('./routes/episodes.cjs');
 const playerRouter = require('./routes/player.cjs');
@@ -29,12 +29,19 @@ if (!process.env.SESSION_SECRET) {
 
 app.set('trust proxy', 1);
 
+// HIVE-1526: only loopback and Docker bridges (Caddy) may talk to the server at all.
+app.use((req, res, next) => (peerAllowed(req.socket.remoteAddress) ? next() : res.status(403).end()));
+
 // Middleware
 app.use(compression());
 app.use(express.json({ limit: '2mb' }));
 
-// Sessions
-app.use(session({
+// Authentik identity first (gate or Bearer); those requests skip express-session entirely.
+app.use('/api', createIdentityResolver());
+
+// Sessions: the legacy podda.sid cookie path, off when PODDA_ALLOW_LEGACY_AUTH=false (HIVE-1529)
+const legacyAuth = process.env.PODDA_ALLOW_LEGACY_AUTH !== 'false';
+const sessionMiddleware = session({
   store: new pgSession({
     pool: db.pool,
     tableName: 'session',
@@ -49,7 +56,13 @@ app.use(session({
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
   },
-}));
+});
+app.use((req, res, next) => {
+  if (req.authentikResolved) return next();
+  if (legacyAuth) return sessionMiddleware(req, res, next);
+  req.session = { destroy: (cb) => cb?.() };
+  next();
+});
 
 // API routes
 app.use('/api', require('./client-tracker.cjs').trackClient);

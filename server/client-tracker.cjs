@@ -41,7 +41,8 @@ function trackClient(req, res, next) {
   next();
   const userId = req.session?.userId;
   if (!userId) return;
-  const c = describeClient(req.headers, req.sessionID);
+  // Authentik (gate or Bearer) requests have no session id: key the device on uid + user agent.
+  const c = describeClient(req.headers, req.sessionID ?? `authentik:${req.authentikUid}:${req.headers['user-agent'] || ''}`);
   const key = `${userId}:${c.deviceId}`;
   const prev = lastWrite.get(key);
   const checkSig = c.updateCheck ? `${c.updateCheck.at.toISOString()};${c.updateCheck.result}` : '';

@@ -1,6 +1,27 @@
 import { useState } from 'react';
 import { useAuthContext } from '../hooks/useAuth';
 
+// HIVE-1526: the screen for an Authentik user with no Podda account (403 not_linked). Static: it
+// never reloads or retries, so it cannot loop.
+export function NotLinked() {
+  const signOut = () => {
+    const native = (window as any).__poddaAuth;
+    if (native?.signOut) native.signOut();
+    else window.location.href = '/outpost.goauthentik.io/sign_out';
+  };
+  return (
+    <div className="login-page">
+      <div className="login-form">
+        <div className="login-brand">
+          <img src="/podda-logo.png" alt="podda" className="brand-logo brand-logo--login" />
+        </div>
+        <p className="login-note">Your account is not set up in Podda.</p>
+        <button type="button" className="btn-primary" onClick={signOut}>Sign out</button>
+      </div>
+    </div>
+  );
+}
+
 export function Login() {
   const { login } = useAuthContext();
   const [username, setUsername] = useState('');
@@ -28,6 +49,13 @@ export function Login() {
         </div>
 
         {error && <div className="error-msg">{error}</div>}
+
+        {/* the Android app's Authentik sign-in (HIVE-1528) when that build provides it */}
+        {(window as any).__poddaAuth?.signIn && (
+          <button type="button" className="btn-primary" onClick={() => (window as any).__poddaAuth.signIn()}>
+            Sign in with Authentik
+          </button>
+        )}
 
         <label>
           <span>Username</span>
