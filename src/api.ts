@@ -19,17 +19,44 @@ export function clientHeaders(): Record<string, string> {
   return { 'X-Podda-Web': __APP_VERSION__, ...(id ? { 'X-Podda-Device': id } : {}) };
 }
 
+// HIVE-1526: the web sits behind Authentik's forward_auth (Caddy). Two ways a web session dies:
+// the proxy session expires (Caddy answers /api with a redirect to the login: an opaqueredirect
+// under redirect: 'manual'), or the 30-day proxy cookie is gone (Caddy passes /api straight
+// through and the server says 401). Both recover with ONE top-level reload, which goes through
+// forward_auth; the sessionStorage stamp makes it at most once a minute, so it cannot loop. The
+// Android app (native fetch, its own sign-in) never takes this path.
+export const isNativeApp = () => !!(window as any).Capacitor?.isNativePlatform?.();
+const RELOAD_KEY = 'podda:auth-reload-ts';
+export function reloadForAuth(now = Date.now()): boolean {
+  try {
+    if (now - Number(sessionStorage.getItem(RELOAD_KEY) || 0) < 60_000) return false;
+    sessionStorage.setItem(RELOAD_KEY, String(now));
+  } catch { return false; } // no storage, no guard: never reload
+  window.location.reload();
+  return true;
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  const web = !isNativeApp();
   const res = await fetch(path, {
     ...options,
+    ...(web ? { redirect: 'manual' as RequestRedirect } : {}),
     headers: {
       'Content-Type': 'application/json',
       ...clientHeaders(),
       ...(options?.headers as Record<string, string> | undefined),
     },
   });
+  if (web && res.type === 'opaqueredirect') {
+    reloadForAuth();
+    throw new Error('Session expired');
+  }
   if (!res.ok) {
     const body = await res.json().catch(() => ({ error: res.statusText }));
+    // An Authentik user with no Podda account: a static screen, never a reload.
+    if (res.status === 403 && body.error === 'not_linked') window.dispatchEvent(new Event('podda:not-linked'));
+    // A wrong password on the legacy login is a 401 too; that one is an answer, not a dead session.
+    else if (web && res.status === 401 && path !== '/api/auth/login') reloadForAuth();
     throw new Error(body.error || `HTTP ${res.status}`);
   }
   return res.json();

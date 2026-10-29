@@ -36,6 +36,10 @@ async function initDB() {
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS first_name VARCHAR(100)`);
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_name VARCHAR(100)`);
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS email VARCHAR(255) UNIQUE`);
+    // HIVE-1526: Authentik identity (hashed_user_id), linked in place by scripts/migrate-authentik-users.cjs;
+    // password_hash goes nullable for the Phase 6 password removal (HIVE-1529).
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS authentik_uid VARCHAR(255) UNIQUE`);
+    await client.query(`ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL`);
 
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS channel_sort VARCHAR(10) NOT NULL DEFAULT 'newest'`);
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS channel_hide_completed BOOLEAN NOT NULL DEFAULT FALSE`);
