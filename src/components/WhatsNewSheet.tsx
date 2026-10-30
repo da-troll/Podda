@@ -10,6 +10,9 @@ interface WhatsNew {
   version: string;
   date: string;
   bullets: string[];
+  // Optional: a sheet that asks for one action instead of listing release notes.
+  title?: string;
+  cta?: { label: string; url: string; dismiss?: string };
 }
 
 export function WhatsNewSheet() {
@@ -46,14 +49,23 @@ export function WhatsNewSheet() {
         <div className="whatsnew-header">
           <Sparkles size={22} className="whatsnew-icon" />
           <div>
-            <h2 id="whatsnew-title" className="whatsnew-title">What's new in v{data.version}</h2>
+            <h2 id="whatsnew-title" className="whatsnew-title">{data.title || `What's new in v${data.version}`}</h2>
             <div className="whatsnew-date">{data.date}</div>
           </div>
         </div>
         <ul className="whatsnew-bullets">
           {data.bullets.map((b, i) => <li key={i}>{b}</li>)}
         </ul>
-        <button className="whatsnew-got-it" onClick={dismiss}>Got it</button>
+        {data.cta ? (
+          <>
+            <a className="whatsnew-got-it whatsnew-cta" href={data.cta.url} target="_blank" rel="noopener" onClick={dismiss}>
+              {data.cta.label}
+            </a>
+            <button className="whatsnew-later" onClick={dismiss}>{data.cta.dismiss || 'Not now'}</button>
+          </>
+        ) : (
+          <button className="whatsnew-got-it" onClick={dismiss}>Got it</button>
+        )}
       </div>
     </div>,
     document.body

@@ -1,11 +1,15 @@
 {
-  "version": "1.2.2",
-  "date": "2026-10-11",
+  "version": "1.2.3",
+  "date": "2026-10-30",
+  "title": "Sign in with Google",
   "bullets": [
-    "Channel settings: the new gear on a channel page keeps that channel's episode order, whether completed episodes are hidden, and whether it remembers your scroll position. Each can follow your default or be set for that channel.",
-    "Remember scroll position: reopen a channel or playlist where you left off, on any of your devices. Off by default; turn it on for everything in Settings → Preferences, or per channel and playlist.",
-    "Episodes now load as you scroll, so the Load more button is gone. Tap Show all next to the episode count to load a whole channel at once.",
-    "Filters (status, release date, length) apply until you leave the channel; Hide completed moved to channel settings.",
-    "Long episode lists scroll more smoothly while something is playing."
-  ]
+    "Podda now signs you in with your Trollefsen account, on the web and in the app.",
+    "Link your Google account once, then sign in with one tap. No password to remember.",
+    "It is also safer: Google's own protection, like 2-step verification and alerts about unfamiliar sign-ins, now guards your Podda account too."
+  ],
+  "cta": {
+    "label": "Link my Google account",
+    "url": "https://auth.trollefsen.com/if/flow/podda-authentication/?next=%2Fsource%2Foauth%2Flogin%2Fgoogle%2F",
+    "dismiss": "Not now"
+  }
 }
