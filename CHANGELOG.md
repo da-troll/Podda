@@ -7,6 +7,12 @@ Format: one `## v<major>.<minor>.<patch> — <YYYY-MM-DD>` header per release,
 followed by bullet points. `publish-update.sh` requires an entry matching
 the version being published — releases without an entry fail.
 
+## v1.2.3 — 2026-10-30
+
+- Podda now signs you in with your Trollefsen account, on the web and in the app, and keeps you signed in on your phone.
+- Link your Google account once, then sign in with one tap. No password to remember.
+- It is also safer: Google's own protection, like 2-step verification and alerts about unfamiliar sign-ins, now guards your Podda account too.
+
 ## v1.2.2 — 2026-10-11
 
 - Channel settings: the new gear on a channel page keeps that channel's episode order, whether completed episodes are hidden, and whether it remembers your scroll position. Each can follow your default or be set for that channel.

@@ -1180,6 +1180,13 @@ img { display: block; max-width: 100%; }
   padding: 12px; font-weight: 600; font-size: 0.95rem;
   cursor: pointer;
 }
+.whatsnew-cta { display: block; text-align: center; text-decoration: none; box-sizing: border-box; }
+.whatsnew-later {
+  width: 100%; margin-top: 8px;
+  background: none; border: none; color: var(--text-muted);
+  padding: 10px; font-size: 0.9rem; cursor: pointer; border-radius: var(--radius);
+}
+.whatsnew-later:hover { color: var(--text); }
 @keyframes slide-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
 
